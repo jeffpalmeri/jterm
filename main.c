@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #include <unistd.h>
 
@@ -9,6 +10,14 @@
 #include <X11/Xft/Xft.h>
 
 #include <fontconfig/fontconfig.h>
+
+#include "pty.h"
+#include "ptyFork.h"
+
+#include "stuff.h"
+
+#define MAX(a, b)		((a) < (b) ? (b) : (a))
+#define MAX_SNAME 1000
 
 int height = 1200;
 int width = 1600;
@@ -23,23 +32,42 @@ void die(const char *errString, ...) {
   exit(1);
 }
 
-typedef struct {
-  int row;
-  int col;
-  int cursor_x;
-  int cursor_y;
-} Term;
+// enum terminal_mode {
+//   csi
+// };
+//
+// enum escape_state {
+//   ESC_CSI   = 1 << 0,
+//   ESC_START = 1 << 1,
+// };
+//
+// typedef struct {
+//   int row;
+//   int col;
+//   int cursor_x;
+//   int cursor_y;
+//   int mode;
+// } Term;
 
-static Term term;
 
-void drawCursor(XftFont *font, XftColor *color, XftDraw *draw) {
-  XRectangle rab;
-  rab.x = 0;
-  rab.y = 0;
-  rab.height = font->height;
-  rab.width = font->max_advance_width;
-  XftDrawRect(draw, color, term.cursor_x, term.cursor_y - font->ascent, rab.width, rab.height);
-}
+Display *display;
+XftFont *font;
+XftColor xft_font_color;
+XftColor xft_bg_color;
+XftDraw *draw;
+Term term;
+CS cs;
+XEvent evt;
+int masterFd;
+
+// void drawCursor(XftFont *font, XftColor *color, XftDraw *draw) {
+//   XRectangle rab;
+//   rab.x = 0;
+//   rab.y = 0;
+//   rab.height = font->height;
+//   rab.width = font->max_advance_width;
+//   XftDrawRect(draw, color, term.cursor_x, term.cursor_y - font->ascent, rab.width, rab.height);
+// }
 
 void drawGlyph()
 {
@@ -123,7 +151,7 @@ FcPattern* loadFont()
 
 XftFont* openXft(Display *display, FcPattern *match)
 {
-  XftFont *font = XftFontOpenPattern(display, match);
+  font = XftFontOpenPattern(display, match);
   if(!font) die("XftFontOpenPattern failed\n");
 
   printf("Xft font opened successfully\n");
@@ -136,9 +164,34 @@ XftFont* openXft(Display *display, FcPattern *match)
 
 int main(int argc, char** argv)
 {
-  term = (Term){ 24, 80, 50, 100 };
+  memset(&cs, 0, sizeof(cs));
+  const int maxSnLen = 1000;
+  char slaveName[1000];
 
-  Display *display = XOpenDisplay(NULL);
+  struct termios ttyOrig;
+  struct winsize ws;
+  char *shell;
+  if(tcgetattr(STDIN_FILENO, &ttyOrig) == -1) {
+    die("tcgetattr");
+  }
+  if(ioctl(STDIN_FILENO, TIOCGWINSZ, &ws) < 0) {
+    die("ioctl-TIOCGWINSZ");
+  }
+  // int masterFd = ptyMasterOpen(slaveName, maxSnLen);
+  pid_t childPid = ptyFork(&masterFd, slaveName, MAX_SNAME, &ttyOrig, &ws);
+  if(childPid == 0) {
+    // shell = getenv("SHELL");
+    // if(shell == NULL || *shell == '\0') shell = "/bin/sh";
+    shell = "/bin/sh";
+    execlp(shell, shell, (char *) NULL);
+    die("execlp"); // If we get here, something went wrong
+  }
+
+  printf("masterFd %i\n", masterFd);
+
+  term = (Term){ 24, 80, 50, 100, 0 };
+
+  display = XOpenDisplay(NULL);
   printf("Dispay opened\n");
 
   int screen = XDefaultScreen(display);
@@ -178,13 +231,11 @@ int main(int argc, char** argv)
 
   FcPattern *match = loadFont();
   XftFont *font = openXft(display, match);
-  XftDraw *draw = XftDrawCreate(display, window, visual, colormap);
+  draw = XftDrawCreate(display, window, visual, colormap);
 
-  XftColor xft_font_color;
   XRenderColor xr = {0x0000, 0x0000 , 0x0000, 0xffff};
   XftColorAllocValue(display, visual, colormap, &xr, &xft_font_color);
 
-  XftColor xft_bg_color;
   XRenderColor bgxr = {grey.red, grey.green, grey.blue, 0xffff};
   XftColorAllocValue(display, visual, colormap, &bgxr, &xft_bg_color);
 
@@ -201,7 +252,6 @@ int main(int argc, char** argv)
   XMapWindow(display, window);
   XFlush(display);
 
-  XEvent evt;
   XFlush(display);
 
   do {
@@ -216,123 +266,164 @@ int main(int argc, char** argv)
   rab.width = font->max_advance_width;
   XftDrawRect(draw, &xft_font_color, term.cursor_x, term.cursor_y - font->ascent, rab.width, rab.height);
 
-
-  while(1) {
+  int xfd = XConnectionNumber(display);
+  char buf[256];
   // while(XPending(display)) {
-    XNextEvent(display, &evt);
-    printf("Event type is %d\n", evt.type);
+  while(1) {
+    fd_set rfd;
+    FD_ZERO(&rfd);
+    FD_SET(masterFd, &rfd);
+    FD_SET(xfd, &rfd);
+  //   struct timespec seltv, *tv;
+		// tv = timeout >= 0 ? &seltv : NULL;
 
-    if(evt.type == KeyPress) {
-      XKeyEvent *xke = &evt.xkey;
-      KeySym keysym = NoSymbol;
-      char buf[64];
-      int len;
+		if (pselect(MAX(xfd, masterFd)+1, &rfd, NULL, NULL, NULL, NULL) < 0) {
+			if (errno == EINTR)
+				continue;
+			die("select failed: %s\n", strerror(errno));
+		}
 
-      len = XLookupString(xke, buf, sizeof buf, &keysym, NULL);
-      printf("==========\n");
-      printf("KeyPress len is: %d\n", len);
-      printf("KeyPress buf is: %s\n", buf);
-      printf("KeyPress buf in hex: ");
-      for(int i = 0; i < len; i++) {
-        printf("0x%02x ", (unsigned char)buf[i]);
+    if(FD_ISSET(masterFd, &rfd)) {
+      ssize_t numRead = read(masterFd, buf, 256);
+      printf("**** numRead from masterFd: %zd\n", numRead);
+      // printf("And what the heck did I actually read?: %s\n", buf);
+
+      for (ssize_t i = 0; i < numRead; i++) {
+        fprintf(stderr, "%02x ", (unsigned char)buf[i]);
       }
       printf("\n");
-      printf("KeySym is: %lu\n", keysym);
-      printf("KeySym to string is: %s\n", XKeysymToString(keysym));
-      printf("==========\n\n");
+      printf("----------end------------\n");
+      printf("\n\n\n\n\n");
 
-      if(xke->state & Mod1Mask) {
-        printf("Typed with ALT held down and len is %d\n", len);
-      }
+      vtParse2(buf, numRead);
+    }
 
-      // if(keysym == 65293) { // return
-      if(keysym == XK_Return) { // return
-        // Delete the cursor from the end of the line
-        drawCursor(font, &xft_bg_color, draw);
+		while (XPending(display)) {
+      XNextEvent(display, &evt);
+      printf("---------start-------------\n");
+      printf("Event type is %d\n", evt.type);
 
-        // XK_Return;
-        // term.cursor_y += 50;
-        term.cursor_y += font->height * 1.2;
-        term.cursor_x = 50;
+      if(evt.type == KeyPress) {
+        XKeyEvent *xke = &evt.xkey;
+        KeySym keysym = NoSymbol;
+        char buf[64];
+        int len;
 
-        // Draw cursor now at the start of the new line
-        drawCursor(font, &xft_font_color, draw);
+        len = XLookupString(xke, buf, sizeof buf, &keysym, NULL);
+        printf("==========\n");
+        printf("KeyPress len is: %d\n", len);
+        printf("KeyPress buf is: %s\n", buf);
+        printf("KeyPress buf in hex: ");
+        for(int i = 0; i < len; i++) {
+          printf("0x%02x ", (unsigned char)buf[i]);
+        }
+        printf("\n");
+        printf("KeySym is: %lu\n", keysym);
+        printf("KeySym to string is: %s\n", XKeysymToString(keysym));
+        printf("==========\n\n");
 
-        continue;
-      }
+        if(xke->state & Mod1Mask) {
+          printf("Typed with ALT held down and len is %d\n", len);
+        }
 
-      if(keysym == 65288) { // backspace
-                            //
-        printf("Backspace!\n");
-        // Delete the previous cursor
-        drawCursor(font, &xft_bg_color, draw);
+        // if(keysym == 65293) { // return
+        if(keysym == XK_Return) { // return
+          // Delete the cursor from the end of the line
+          drawCursor(font, &xft_bg_color, draw);
 
-        int cell_width = font->max_advance_width;
-        int cell_height = font->height;
-        XRectangle r;
-        r.x = 0;
-        r.y = 0;
-        r.height = cell_height;
-        r.width = cell_width;
+          // XK_Return;
+          // term.cursor_y += 50;
+          term.cursor_y += font->height * 1.2;
+          term.cursor_x = 50;
 
-        term.cursor_x -= font->max_advance_width;
+          // Draw cursor now at the start of the new line
+          drawCursor(font, &xft_font_color, draw);
 
-        int x = term.cursor_x;
-        int y = term.cursor_y;
+          ssize_t written = write(masterFd, "\n", 1);
 
-        XftDrawRect(draw, &xft_bg_color, x, y - font->ascent, cell_width, cell_height); // width and height?
-        XftDrawSetClipRectangles(draw, x, y - font->ascent, &r, 1);
-        XftDrawSetClip(draw, 0);
+          continue;
+        }
 
-        // Draw new cursor after the backspace
-        drawCursor(font, &xft_font_color, draw);
+        if(keysym == 65288) { // backspace
+                              //
+          printf("Backspace!\n");
+          // Delete the previous cursor
+          drawCursor(font, &xft_bg_color, draw);
 
-        continue;
-      }
+          int cell_width = font->max_advance_width;
+          int cell_height = font->height;
+          XRectangle r;
+          r.x = 0;
+          r.y = 0;
+          r.height = cell_height;
+          r.width = cell_width;
 
-      if(len > 0) {
-        // Maybe using XKeysymToString is the more correct way than doing this?
-        buf[len] = '\0';
-        unsigned int codepoint = (unsigned char)buf[0];
-        printf("Ok getting serious, the letter typed is %s\n", buf);
+          term.cursor_x -= font->max_advance_width;
 
-        FT_UInt glyph = XftCharIndex(display, font, codepoint); 
-        printf("XftCharIndex() seems to be called successfully %u\n", glyph);
-        // XftColor xft_font_color;
-        // XRenderColor xr = {0x0000, 0x0000 , 0x0000, 0xffff};
-        // XftColorAllocValue(display, visual, colormap, &xr, &xft_font_color);
-        // printf("xft color allocated\n");
+          int x = term.cursor_x;
+          int y = term.cursor_y;
 
-        int cell_width = font->max_advance_width;
-        // int cell_height = font->ascent + font->descent;
-        int cell_height = font->height;
+          XftDrawRect(draw, &xft_bg_color, x, y - font->ascent, cell_width, cell_height); // width and height?
+          XftDrawSetClipRectangles(draw, x, y - font->ascent, &r, 1);
+          XftDrawSetClip(draw, 0);
+
+          // Draw new cursor after the backspace
+          drawCursor(font, &xft_font_color, draw);
+
+          continue;
+        }
+
+        if(len > 0) {
+          // Maybe using XKeysymToString is the more correct way than doing this?
+          buf[len] = '\0';
+          unsigned int codepoint = (unsigned char)buf[0];
+          printf("Ok getting serious, the letter typed is %s\n", buf);
+
+          FT_UInt glyph = XftCharIndex(display, font, codepoint); 
+          printf("XftCharIndex() seems to be called successfully %u\n", glyph);
+          // XftColor xft_font_color;
+          // XRenderColor xr = {0x0000, 0x0000 , 0x0000, 0xffff};
+          // XftColorAllocValue(display, visual, colormap, &xr, &xft_font_color);
+          // printf("xft color allocated\n");
+
+          int cell_width = font->max_advance_width;
+          // int cell_height = font->ascent + font->descent;
+          int cell_height = font->height;
 
 
-        XRectangle r;
-        r.x = 0;
-        r.y = 0;
-        r.height = cell_height;
-        r.width = cell_width;
+          XRectangle r;
+          r.x = 0;
+          r.y = 0;
+          r.height = cell_height;
+          r.width = cell_width;
 
-        int x = term.cursor_x;
-        int y = term.cursor_y;
+          int x = term.cursor_x;
+          int y = term.cursor_y;
 
-        XftDrawRect(draw, &xft_bg_color, x, y - font->ascent, cell_width, cell_height); // width and height?
-        XftDrawSetClipRectangles(draw, x, y - font->ascent, &r, 1);
-        XftGlyphFontSpec spec;
-        spec.font = font;
-        spec.glyph = glyph;
-        spec.x = x;
-        spec.y = y;
+          ssize_t written = write(masterFd, buf, len);
+          // printf("****** write call, written is: %zd\n", written);
+          // printf("And what the heck did I actually write?: %s\n", buf);
 
-        XftDrawGlyphFontSpec(draw, &xft_font_color, &spec, 1);
+          // Commenting out the actual drawing of text for now
+          /*
+          XftDrawRect(draw, &xft_bg_color, x, y - font->ascent, cell_width, cell_height); // width and height?
+          XftDrawSetClipRectangles(draw, x, y - font->ascent, &r, 1);
+          XftGlyphFontSpec spec;
+          spec.font = font;
+          spec.glyph = glyph;
+          spec.x = x;
+          spec.y = y;
 
-        XftDrawSetClip(draw, 0);
+          XftDrawGlyphFontSpec(draw, &xft_font_color, &spec, 1);
 
-        term.cursor_x += font->max_advance_width;
+          XftDrawSetClip(draw, 0);
+          */
 
-        // Draw the new cursor position, since last char has been drawn, and x position updated
-        drawCursor(font, &xft_font_color, draw);
+          // term.cursor_x += font->max_advance_width;
+
+          // Draw the new cursor position, since last char has been drawn, and x position updated
+          // drawCursor(font, &xft_font_color, draw);
+        }
       }
     }
   }

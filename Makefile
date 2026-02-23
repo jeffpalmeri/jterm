@@ -1,11 +1,70 @@
-main: main.o
+main: main.o pty.o ptyFork.o stuff.o
 	# gcc main.o -o main -lX11 -lfontconfig -lXft -lfreetype
-	gcc main.o -o main `pkg-config --libs x11 xft fontconfig`
+	gcc -g -O0 main.o pty.o ptyFork.o stuff.o -o main `pkg-config --libs x11 xft fontconfig`
 
 main.o: main.c
 	# gcc -c main.c -o main.o `pkg-config --cflags freetype2`
-	gcc -c main.c -o main.o `pkg-config --cflags x11 xft fontconfig`
+	gcc -c -g -O0 main.c -o main.o `pkg-config --cflags x11 xft fontconfig`
+
+pty.o: pty.c
+	gcc -c pty.c -o pty.o
+
+ptyFork.o: ptyFork.c
+	gcc -c ptyFork.c -o ptyFork.o
 
 clean:
-	rm -rf main.o main .cache
+	rm -rf main.o main .cache pty.o ptyFork.o script.o tty_functions.o
 
+stuff.o: stuff.c
+	gcc -c -g -O0 stuff.c -o stuff.o `pkg-config --cflags x11 xft fontconfig`
+
+test.o: test.c
+	gcc -c -g -O0 test.c -o test.o
+
+.PHONY: test
+test: test.o stuff.o
+	gcc -g -O0 test.o stuff.o -o test && ./test
+
+# script: script.o pty.o ptyFork.o tty_functions.o
+# 	gcc script.o pty.o ptyFork.o tty_functions.o -o script
+#
+# script.o: script.c pty.o ptyFork.o tty_functions.o
+# 	gcc -c script.c -o script.o 
+
+# tty_functions.o: tty_functions.c
+# 	gcc -c tty_functions.c -o tty_functions.o
+
+############################################
+
+script: script.o pty2.o ptyFork2.o tty_functions.o
+	gcc script.o pty2.o ptyFork2.o tty_functions.o from_book/lib/error_functions.o -o script
+
+script.o: from_book/script.c pty2.o ptyFork2.o tty_functions.o
+	gcc -c from_book/script.c -o script.o 
+# script.o: script.c pty.o ptyFork2.o tty_functions.o
+# 	gcc -c script.c -o script.o 
+
+pty2.o: from_book/pty_master_open.c
+	gcc -c from_book/pty_master_open.c -o pty2.o
+
+ptyFork2.o: from_book/pty_fork.c
+	gcc -c from_book/pty_fork.c -o ptyFork2.o
+
+from_book/lib/error_functions.o: from_book/lib/error_functions.c
+	gcc -c -g -Og from_book/lib/error_functions.c -o from_book/lib/error_functions.o
+
+tty_functions.o: tty_functions.c
+	gcc -c tty_functions.c -o tty_functions.o
+
+.PHONY: clean
+
+clean2:
+	rm -f *.o
+
+############################################
+
+nogui: nogui.o from_book/lib/error_functions.o ptyFork.o pty.o
+	gcc nogui.o from_book/lib/error_functions.o ptyFork.o pty.o -o nogui
+
+nogui.o: nogui.c
+	gcc -c nogui.c -o nogui.o

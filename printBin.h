@@ -1,0 +1,1 @@
+char* printBinary(int n);
