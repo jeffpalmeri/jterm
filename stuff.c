@@ -110,6 +110,14 @@ void vtParse3(const char *p, int size, void (*wc)(const char*)) {
       // write normal char here?
       // write_char(p+i);
       wc(p+i);
+      // term.lines[term.cursor_x-50][term.cursor_y-100] = (Line){
+      term.lines[0][0] = (Line){
+        .row = term.cursor_x,
+        .col = term.cursor_y,
+        .dirty = 1,
+      };
+      // term.cursor_x++;
+      // term.cursor_y++;
       continue;
     }
     if (term.esc & ESC_START) {

@@ -186,6 +186,8 @@ int main(int argc, char **argv) {
   printf("masterFd %i\n", masterFd);
 
   term = (Term){24, 80, 50, 100, 0};
+  term.lines = malloc(sizeof(Line*) * term.rows);
+  term.lines[0] = malloc(sizeof(Line) * term.cols);
 
   display = XOpenDisplay(NULL);
   printf("Dispay opened\n");

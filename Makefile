@@ -13,7 +13,8 @@ ptyFork.o: ptyFork.c
 	gcc -c ptyFork.c -o ptyFork.o
 
 clean:
-	rm -rf main.o main .cache pty.o ptyFork.o script.o tty_functions.o
+	# rm -rf main.o main .cache pty.o ptyFork.o script.o tty_functions.o
+	rm -rf main .cache *.o
 
 stuff.o: stuff.c
 	gcc -c -g -O0 stuff.c -o stuff.o `pkg-config --cflags x11 xft fontconfig`

@@ -1,21 +1,58 @@
 [
   {
+    "file": "main.c",
     "arguments": [
-      "/usr/bin/gcc",
+      "gcc",
       "-c",
-      "-I/usr/include/freetype2",
-      "-I/usr/include/libpng16",
-      "-I/usr/include/harfbuzz",
-      "-I/usr/include/glib-2.0",
-      "-I/usr/lib/glib-2.0/include",
-      "-I/usr/include/sysprof-6",
-      "-pthread",
+      "-g",
+      "-O0",
+      "main.c",
       "-o",
       "main.o",
-      "main.c"
+      "-I/usr/include/freetype2",
+      "-I/usr/include/libpng16"
     ],
     "directory": "/home/jeff/personal/xlib-experiments",
-    "file": "/home/jeff/personal/xlib-experiments/main.c",
-    "output": "/home/jeff/personal/xlib-experiments/main.o"
+    "output": "main.o"
+  },
+  {
+    "file": "pty.c",
+    "arguments": [
+      "gcc",
+      "-c",
+      "pty.c",
+      "-o",
+      "pty.o"
+    ],
+    "directory": "/home/jeff/personal/xlib-experiments",
+    "output": "pty.o"
+  },
+  {
+    "file": "ptyFork.c",
+    "arguments": [
+      "gcc",
+      "-c",
+      "ptyFork.c",
+      "-o",
+      "ptyFork.o"
+    ],
+    "directory": "/home/jeff/personal/xlib-experiments",
+    "output": "ptyFork.o"
+  },
+  {
+    "file": "stuff.c",
+    "arguments": [
+      "gcc",
+      "-c",
+      "-g",
+      "-O0",
+      "stuff.c",
+      "-o",
+      "stuff.o",
+      "-I/usr/include/freetype2",
+      "-I/usr/include/libpng16"
+    ],
+    "directory": "/home/jeff/personal/xlib-experiments",
+    "output": "stuff.o"
   }
 ]

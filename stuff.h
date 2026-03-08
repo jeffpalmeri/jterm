@@ -9,13 +9,21 @@ enum escape_state {
   ESC_CSI   = 1 << 1, // 2;
 };
 
-typedef struct {
+typedef struct Line {
   int row;
   int col;
+  int dirty;
+  // glyph
+} Line;
+
+typedef struct Term {
+  int rows;
+  int cols;
   int cursor_x;
   int cursor_y;
   int mode;
   int esc;
+  Line **lines;
 } Term;
 
 typedef struct CS {

@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 #include "ptyFork.h"
-#include "from_book/lib/error_functions.h"
+#include "tlpi/lib/error_functions.h"
 
 #define MAX_SNAME 1000
 #define BUF_SIZE 256
