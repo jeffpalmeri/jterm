@@ -83,6 +83,8 @@ int main(int argc, char *argv[])
   return 0;
 }
 
+void wc(const char *c) {}
+
 /*
  * TestCase #1
  * What do I need
@@ -93,7 +95,7 @@ void TestCase(const char *bytes, int num_bytes, CS *expectCs) {
   memset(&cs, 0, sizeof(cs));
   memset(&cs.buf, 0xAA, sizeof(cs.buf));
 
-  vtParse2(bytes, num_bytes);
+  vtParse3(bytes, num_bytes, wc);
   // assert(strcmp(cs.buf, expectCs->buf) == 0);
   // cs.buf[6] = 'a';
   printf("first %x\n", cs.buf[6]);

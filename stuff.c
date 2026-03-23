@@ -9,6 +9,8 @@
 #include "stuff.h"
 #include <X11/extensions/Xrender.h>
 
+#define ASCENT_MULT 1.3
+
 extern Display *display;
 extern XftFont *font;
 extern Term term;
@@ -40,7 +42,11 @@ void drawCursor(XftFont *font, XftColor *color, XftDraw *draw) {
   rab.y = 0;
   rab.height = font->height;
   rab.width = font->max_advance_width;
-  XftDrawRect(draw, color, term.cursor_x, term.cursor_y - font->ascent, rab.width, rab.height);
+  XftDrawRect(draw, color, 
+      // term.cursor_x+(term.cursor_y-100)*font->max_advance_width,
+      50+(term.cursor_y-100)*font->max_advance_width,
+      100+(((term.cursor_x-50)*(font->ascent * ASCENT_MULT))-font->ascent),
+      rab.width, rab.height);
 }
 
 void vtParse(char b) {
@@ -98,6 +104,7 @@ void vtParse2(const char *p, int size) {
   printf("DONEZOOOOOOO\n");
 }
 
+// function pointer is not needed any more
 void vtParse3(const char *p, int size, void (*wc)(const char*)) {
   for (int i = 0; i < size; i++) {
     char b = p[i];
@@ -109,15 +116,37 @@ void vtParse3(const char *p, int size, void (*wc)(const char*)) {
 
       // write normal char here?
       // write_char(p+i);
-      wc(p+i);
-      // term.lines[term.cursor_x-50][term.cursor_y-100] = (Line){
-      term.lines[0][0] = (Line){
-        .row = term.cursor_x,
-        .col = term.cursor_y,
-        .dirty = 1,
-      };
-      // term.cursor_x++;
-      // term.cursor_y++;
+      // wc(p+i);
+      printf("cursor_x is %u and cursor_y is %u\n", term.cursor_x, term.cursor_y);
+      printf("And the current char is %d\n", *(p+i));
+      if(*(p+i) == 10) {
+        printf("THIS IS A NEWLINE!!!!!!!\n");
+        // Don't actually print a new line
+        // Move our x position down a row.
+        term.cursor_x++;
+        term.cursor_y = 100;
+      } else if(*(p+i) == 13) {
+        printf("THIS IS A CARRIAGE RETURN!!!!!!!\n");
+        // Don't actually print a new line
+        // Move our x position down a row.
+        // term.cursor_x++;
+        // term.cursor_y = 100;
+      } else if(*(p+i) == 9) {
+        printf("THIS IS A HORIZONTAL TAB!!!!!!!\n");
+      }else {
+        term.lines[term.cursor_x-50][term.cursor_y-100] = (Line){
+          .row = term.cursor_x,
+          .col = term.cursor_y,
+          .dirty = 1,
+          .c = *(p+i),
+        };
+        if(term.cursor_y-100 + 1 >= term.cols) {
+          term.cursor_y = 100;
+          term.cursor_x++;
+        } else {
+          term.cursor_y++;
+        }
+      }
       continue;
     }
     if (term.esc & ESC_START) {
@@ -208,6 +237,67 @@ void handle_csi() {
 }
 
 void write_char(const char *p) {
+  printf("THIS SHOULDNT EXISTRRRRRRRRRR");
+  return;
+  // XKeyEvent *xke = &evt.xkey;
+  // KeySym keysym = NoSymbol;
+  // char buf[64];
+  // int len;
+  //
+  //   buf[0] = *p;
+  //   buf[1] = '\0';
+  //   printf("What's the p pointer: %c\n", *p);
+  //   printf("What's in the buf at buf[0]: %c\n", buf[0]);
+  //   unsigned int codepoint = (unsigned char)buf[0];
+  //   printf("Ok getting serious, the letter typed is %s\n", buf);
+  //
+  //   FT_UInt glyph = XftCharIndex(display, font, codepoint);
+  //   printf("XftCharIndex() seems to be called successfully %u\n", glyph);
+  //   // XftColor xft_font_color;
+  //   // XRenderColor xr = {0x0000, 0x0000 , 0x0000, 0xffff};
+  //   // XftColorAllocValue(display, visual, colormap, &xr, &xft_font_color);
+  //   // printf("xft color allocated\n");
+  //
+  //   int cell_width = font->max_advance_width;
+  //   // int cell_height = font->ascent + font->descent;
+  //   int cell_height = font->height;
+  //
+  //   XRectangle r;
+  //   r.x = 0;
+  //   r.y = 0;
+  //   r.height = cell_height;
+  //   r.width = cell_width;
+  //
+  //   int x = term.cursor_x*font->max_advance_width;
+  //   int y = term.cursor_y*font->ascent;
+  //
+  //   // printf("****** write call, written is: %zd\n", written);
+  //   // printf("And what the heck did I actually write?: %s\n", buf);
+  //
+  //   // Commenting out the actual drawing of text for now
+  //   XftDrawRect(draw, &xft_bg_color, x, y - font->ascent, cell_width, cell_height); // width and height? 
+  //   XftDrawSetClipRectangles(draw, x, y - font->ascent, &r, 1); 
+  //   XftGlyphFontSpec spec; 
+  //   spec.font = font; 
+  //   spec.glyph = glyph; 
+  //   spec.x = x; 
+  //   spec.y = y;
+  //
+  //   XftDrawGlyphFontSpec(draw, &xft_font_color, &spec, 1);
+  //
+  //   XftDrawSetClip(draw, 0);
+  //
+  //   // term.cursor_x += font->max_advance_width;
+  //
+  //   // Draw the new cursor position, since last char has been drawn, and x
+  //   // position updated
+  //   drawCursor(font, &xft_font_color, draw);
+  // }
+  //
+}
+
+void write_char2(Line *line) {
+  char *p = &line->c;
   XKeyEvent *xke = &evt.xkey;
   KeySym keysym = NoSymbol;
   char buf[64];
@@ -215,20 +305,15 @@ void write_char(const char *p) {
 
     buf[0] = *p;
     buf[1] = '\0';
-    printf("What's the p pointer: %c\n", *p);
+    printf("What's the p pointer: %d\n", *p);
     printf("What's in the buf at buf[0]: %c\n", buf[0]);
     unsigned int codepoint = (unsigned char)buf[0];
     printf("Ok getting serious, the letter typed is %s\n", buf);
 
     FT_UInt glyph = XftCharIndex(display, font, codepoint);
     printf("XftCharIndex() seems to be called successfully %u\n", glyph);
-    // XftColor xft_font_color;
-    // XRenderColor xr = {0x0000, 0x0000 , 0x0000, 0xffff};
-    // XftColorAllocValue(display, visual, colormap, &xr, &xft_font_color);
-    // printf("xft color allocated\n");
 
     int cell_width = font->max_advance_width;
-    // int cell_height = font->ascent + font->descent;
     int cell_height = font->height;
 
     XRectangle r;
@@ -237,13 +322,19 @@ void write_char(const char *p) {
     r.height = cell_height;
     r.width = cell_width;
 
-    int x = term.cursor_x;
-    int y = term.cursor_y;
+    // int x = term.cursor_x*font->max_advance_width;
+    // int y = term.cursor_y*font->ascent;
+    //
+    // int x = (line->row-50)*font->max_advance_width + 50;
+    // int y = line->col;
 
-    // printf("****** write call, written is: %zd\n", written);
-    // printf("And what the heck did I actually write?: %s\n", buf);
+    // int x = (line->row)*font->max_advance_width;
+    // int x = line->row+(line->col-100)*font->max_advance_width;
+    int x = 50+(line->col-100)*font->max_advance_width;
+    // int y = line->row+50;
+    int y = 100 + ((line->row - 50)*(font->ascent * ASCENT_MULT));
 
-    // Commenting out the actual drawing of text for now
+
     XftDrawRect(draw, &xft_bg_color, x, y - font->ascent, cell_width, cell_height); // width and height? 
     XftDrawSetClipRectangles(draw, x, y - font->ascent, &r, 1); 
     XftGlyphFontSpec spec; 
@@ -251,15 +342,18 @@ void write_char(const char *p) {
     spec.glyph = glyph; 
     spec.x = x; 
     spec.y = y;
+    // spec.x = 50;
+    // spec.y = 100;
+
 
     XftDrawGlyphFontSpec(draw, &xft_font_color, &spec, 1);
 
     XftDrawSetClip(draw, 0);
 
-    term.cursor_x += font->max_advance_width;
+
+    // term.cursor_x += font->max_advance_width;
 
     // Draw the new cursor position, since last char has been drawn, and x
     // position updated
     drawCursor(font, &xft_font_color, draw);
-  // }
 }

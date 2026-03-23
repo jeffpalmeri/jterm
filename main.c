@@ -59,16 +59,6 @@ CS cs;
 XEvent evt;
 int masterFd;
 
-// void drawCursor(XftFont *font, XftColor *color, XftDraw *draw) {
-//   XRectangle rab;
-//   rab.x = 0;
-//   rab.y = 0;
-//   rab.height = font->height;
-//   rab.width = font->max_advance_width;
-//   XftDrawRect(draw, color, term.cursor_x, term.cursor_y - font->ascent,
-//   rab.width, rab.height);
-// }
-
 void drawGlyph() {}
 
 void handleKeyPress(XEvent *e) {}
@@ -185,9 +175,11 @@ int main(int argc, char **argv) {
 
   printf("masterFd %i\n", masterFd);
 
-  term = (Term){24, 80, 50, 100, 0};
+  term = (Term){48, 160, 50, 100, 0, 0, 0};
   term.lines = malloc(sizeof(Line*) * term.rows);
-  term.lines[0] = malloc(sizeof(Line) * term.cols);
+  for(int i = 0; i < term.rows; i++) {
+    term.lines[i] = malloc(sizeof(Line) * term.cols);
+  }
 
   display = XOpenDisplay(NULL);
   printf("Dispay opened\n");
@@ -240,20 +232,31 @@ int main(int argc, char **argv) {
   XMapWindow(display, window);
   XFlush(display);
 
-  XFlush(display);
-
   do {
     XNextEvent(display, &evt);
   } while (evt.type != MapNotify);
   printf("after the do while loop\n");
 
-  XRectangle rab;
-  rab.x = 0;
-  rab.y = 0;
-  rab.height = font->height;
-  rab.width = font->max_advance_width;
-  XftDrawRect(draw, &xft_font_color, term.cursor_x,
-              term.cursor_y - font->ascent, rab.width, rab.height);
+  // XRectangle rab;
+  // rab.x = 0;
+  // rab.y = 0;
+  // rab.height = font->height;
+  // rab.width = font->max_advance_width;
+  // XftDrawRect(draw, &xft_font_color, 
+  //     1000,
+  //     1000,
+  //     rab.width, rab.height);
+
+  // XRectangle rab;
+  // rab.x = 0;
+  // rab.y = 0;
+  // rab.height = font->height;
+  // rab.width = font->max_advance_width;
+  // XftDrawRect(draw, &xft_font_color, 
+  //     50, 100,
+  //     // term.cursor_x,
+  //     // term.cursor_y - font->ascent, 
+  //     rab.width, rab.height);
 
   int xfd = XConnectionNumber(display);
   char buf[256];
@@ -286,6 +289,15 @@ int main(int argc, char **argv) {
 
       // vtParse2(buf, numRead);
       vtParse3(buf, numRead, write_char);
+      for(int x = 0; x < term.rows; x++) {
+        for(int y = 0; y < term.cols; y++) {
+          if(term.lines[x][y].dirty == 1) {
+            // write_char(&term.lines[i][j].c);
+            write_char2(&term.lines[x][y]);
+            term.lines[x][y].dirty = 0;
+          }
+        }
+      }
     }
 
     while (XPending(display)) {
@@ -316,6 +328,7 @@ int main(int argc, char **argv) {
           printf("Typed with ALT held down and len is %d\n", len);
         }
 
+        /*
         // if(keysym == 65293) { // return
         if (keysym == XK_Return) { // return
           // Delete the cursor from the end of the line
@@ -363,56 +376,29 @@ int main(int argc, char **argv) {
 
           continue;
         }
-
+        */
         if (len > 0) {
           // Maybe using XKeysymToString is the more correct way than doing
           // this?
-          buf[len] = '\0';
-          unsigned int codepoint = (unsigned char)buf[0];
-          printf("Ok getting serious, the letter typed is %s\n", buf);
-
-          FT_UInt glyph = XftCharIndex(display, font, codepoint);
-          printf("XftCharIndex() seems to be called successfully %u\n", glyph);
-          // XftColor xft_font_color;
-          // XRenderColor xr = {0x0000, 0x0000 , 0x0000, 0xffff};
-          // XftColorAllocValue(display, visual, colormap, &xr,
-          // &xft_font_color); printf("xft color allocated\n");
-
-          int cell_width = font->max_advance_width;
-          // int cell_height = font->ascent + font->descent;
-          int cell_height = font->height;
-
-          XRectangle r;
-          r.x = 0;
-          r.y = 0;
-          r.height = cell_height;
-          r.width = cell_width;
-
-          int x = term.cursor_x;
-          int y = term.cursor_y;
+          // buf[len] = '\0';
+          // unsigned int codepoint = (unsigned char)buf[0];
+          // printf("Ok getting serious, the letter typed is %s\n", buf);
+          //
+          // FT_UInt glyph = XftCharIndex(display, font, codepoint);
+          // printf("XftCharIndex() seems to be called successfully %u\n", glyph);
+          // int cell_width = font->max_advance_width;
+          // int cell_height = font->height;
+          //
+          // XRectangle r;
+          // r.x = 0;
+          // r.y = 0;
+          // r.height = cell_height;
+          // r.width = cell_width;
+          //
+          // int x = term.cursor_x;
+          // int y = term.cursor_y;
 
           ssize_t written = write(masterFd, buf, len);
-          // printf("****** write call, written is: %zd\n", written);
-          // printf("And what the heck did I actually write?: %s\n", buf);
-
-          // Commenting out the actual drawing of text for now
-          /*
-          XftDrawRect(draw, &xft_bg_color, x, y - font->ascent, cell_width,
-          cell_height); // width and height? XftDrawSetClipRectangles(draw, x, y
-          - font->ascent, &r, 1); XftGlyphFontSpec spec; spec.font = font;
-          spec.glyph = glyph;
-          spec.x = x;
-          spec.y = y;
-
-          XftDrawGlyphFontSpec(draw, &xft_font_color, &spec, 1);
-
-          XftDrawSetClip(draw, 0);
-          */
-
-          // term.cursor_x += font->max_advance_width;
-
-          // Draw the new cursor position, since last char has been drawn, and x
-          // position updated drawCursor(font, &xft_font_color, draw);
         }
       }
     }
@@ -420,3 +406,23 @@ int main(int argc, char **argv) {
 
   return 0;
 }
+
+
+// (lldb) p term.lines[0][0]
+// (Line)  (row = 50, col = 100, dirty = 1, c = 's')
+// (lldb) p term.lines[0][1]
+// (Line)  (row = 50, col = 101, dirty = 1, c = 'h')
+// (lldb) p term.lines[0][2]
+// (Line)  (row = 50, col = 102, dirty = 1, c = '-')
+// (lldb) p term.lines[0][3]
+// (Line)  (row = 50, col = 103, dirty = 1, c = '5')
+// (lldb) p term.lines[0][4]
+// (Line)  (row = 50, col = 104, dirty = 1, c = '.')
+// (lldb) p term.lines[0][5]
+// (Line)  (row = 50, col = 105, dirty = 1, c = '3')
+// (lldb) p term.lines[0][6]
+// (Line)  (row = 50, col = 106, dirty = 1, c = '$')
+// (lldb) p term.lines[0][7]
+// (Line)  (row = 50, col = 107, dirty = 1, c = ' ')
+// (lldb) p term.lines[0][8]
+// (Line)  (row = 0, col = 0, dirty = 0, c = '\0')

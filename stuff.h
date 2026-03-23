@@ -13,6 +13,7 @@ typedef struct Line {
   int row;
   int col;
   int dirty;
+  char c;
   // glyph
 } Line;
 
@@ -43,5 +44,6 @@ int csi_ending_char(char b);
 void parse_csi();
 void handle_csi();
 void write_char(const char *p);
+void write_char2(Line *line);
 
 void drawCursor(XftFont *font, XftColor *color, XftDraw *draw);
