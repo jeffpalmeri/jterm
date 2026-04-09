@@ -23,18 +23,12 @@ void vtParse3(const char *p, int size, Term *term, CS *cs, void (*handle_csi)(CS
       // wc(p+i);
       printf("cursor_x is %u and cursor_y is %u\n", term->cursor_x, term->cursor_y);
       printf("And the current char is %d\n", *(p+i));
-      int x = term->cursor_x;
-      int x_offset = x-term->offset;
-      if(x_offset < 0) {
-        x_offset += term->rows;
-      }
-      int current_row = x_offset;
-      // int current_x = term->cursor_x;
-      int current_x = x_offset;
+      int x_offset = (term->cursor_x+term->rows)%term->rows;
       if(*(p+i) == 10) {
         printf("THIS IS A NEWLINE!!!!!!!\n");
         // Don't actually print a new line
         // Move our x position down a row.
+        int new_cursor_x = (x_offset + 1) % term->rows;
         term->cursor_x = (x_offset + 1) % term->rows; // THINK: Is this +1 then % part right?
         // Clear the current line?
         for(int i = 0; i < term->cols; i++) {
@@ -49,33 +43,23 @@ void vtParse3(const char *p, int size, Term *term, CS *cs, void (*handle_csi)(CS
           term->lines[(x_offset)%term->rows]->dirty = 1;
           // term->lines[(x_offset+1)%term->rows][i].dirty = 1;
         }
-        // if(current_x + 1 >= term->rows) {
-        //   term->offset++;
-        //   term->cursor_x = term->rows-1;
-        // } else {
-        //   term->cursor_x++;
-        // }
+        term->offset++;
         term->cursor_y = 0;
       } else if(*(p+i) == 13) {
         printf("THIS IS A CARRIAGE RETURN!!!!!!!\n");
       } else if(*(p+i) == 9) {
         printf("THIS IS A HORIZONTAL TAB!!!!!!!\n");
       } else {
-        term->lines[current_x]->lineData[term->cursor_y] = (JGlyph){
-          .row = current_x,
+        term->lines[x_offset]->lineData[term->cursor_y] = (JGlyph){
+          .row = x_offset,
           .col = term->cursor_y,
           // .dirty = 0,
           .c = *(p+i),
         };
         if(term->cursor_y-+ 1 >= term->cols) {
           term->cursor_y = 0;
+          int new_cursor_x = (x_offset + 1) % term->rows;
           term->cursor_x = (x_offset + 1) % term->rows;
-          // if(current_x + 1 >= term->rows) {
-          //   term->offset++;
-          //   term->cursor_x = term->rows-1;
-          // } else {
-          //   term->cursor_x++;
-          // }
         } else {
           term->cursor_y++;
         }

@@ -176,163 +176,154 @@ int main(int argc, char **argv) {
 
   printf("masterFd %i\n", masterFd);
 
-  term = (Term){5, 160, 0, 0, 0, 0, 0, 0, 0};
-  // How big will each "line" be?
-  // #rows * sizeof(Line*), 
-  // and each Line will be (JGlyph * #cols) + int + int
-  term.lines = malloc(sizeof(Line*) * term.rows);
-  for(int i = 0; i < term.rows; i++) {
-    term.lines[i] = malloc(sizeof(Line));
-    // term.lines[i] = malloc((sizeof(JGlyph) * term.cols) + (2*sizeof(int)));
-    term.lines[i]->dirty = 0;
-    term.lines[i]->row = i;
-    term.lines[i]->lineData = malloc(sizeof(JGlyph) * term.cols);
+term = (Term){50, 160, 0, 0, 0, 0, 0, 0, 0, 0};
+// How big will each "line" be?
+// #rows * sizeof(Line*), 
+// and each Line will be (JGlyph * #cols) + int + int
+term.lines = malloc(sizeof(Line*) * term.rows);
+for(int i = 0; i < term.rows; i++) {
+  term.lines[i] = malloc(sizeof(Line));
+  // term.lines[i] = malloc((sizeof(JGlyph) * term.cols) + (2*sizeof(int)));
+  term.lines[i]->dirty = 0;
+  term.lines[i]->row = i;
+  term.lines[i]->lineData = malloc(sizeof(JGlyph) * term.cols);
+}
+// term.lines = malloc(sizeof(Line*) * term.rows);
+// for(int i = 0; i < term.rows; i++) {
+//   term.lines[i] = malloc(sizeof(Line) * term.cols);
+// }
+
+display = XOpenDisplay(NULL);
+printf("Dispay opened\n");
+
+int screen = XDefaultScreen(display);
+Visual *visual = XDefaultVisual(display, screen);
+
+Window parent = XRootWindow(display, screen);
+
+XColor grey;
+Colormap colormap = DefaultColormap(display, screen);
+XParseColor(display, colormap, "#808080", &grey);
+XAllocColor(display, colormap, &grey);
+
+XSetWindowAttributes attrs = {0};
+
+attrs.background_pixel = grey.pixel;
+attrs.colormap = XCreateColormap(display, parent, visual, AllocNone);
+attrs.event_mask = ExposureMask | KeyPressMask | StructureNotifyMask;
+
+Window window = XCreateWindow(
+    display, parent, 0, 0, width, height, 0, XDefaultDepth(display, screen),
+    InputOutput, visual, CWBackPixel | CWColormap | CWEventMask, &attrs);
+
+if (!window)
+  die("XCreateWindow failed\n");
+
+printf("Complete, window id is %lu\n", window);
+
+FcPattern *match = loadFont();
+XftFont *font = openXft(display, match);
+draw = XftDrawCreate(display, window, visual, colormap);
+
+XRenderColor xr = {0x0000, 0x0000, 0x0000, 0xffff};
+XftColorAllocValue(display, visual, colormap, &xr, &xft_font_color);
+
+XRenderColor bgxr = {grey.red, grey.green, grey.blue, 0xffff};
+XftColorAllocValue(display, visual, colormap, &bgxr, &xft_bg_color);
+
+printf("xft colors allocated\n");
+
+printf("\nStarting rendering next\n");
+
+XMapWindow(display, window);
+GC gc = XCreateGC(display, window, 0, NULL);
+XSetForeground(display, gc, BlackPixel(display, screen));
+XFillRectangle(display, window, gc, 0, 0, 800, 800);
+// XFreeGC(display, gc);
+
+XMapWindow(display, window);
+XFlush(display);
+
+do {
+  XNextEvent(display, &evt);
+} while (evt.type != MapNotify);
+printf("after the do while loop\n");
+
+// XRectangle rab;
+// rab.x = 0;
+// rab.y = 0;
+// rab.height = font->height;
+// rab.width = font->max_advance_width;
+// XftDrawRect(draw, &xft_font_color, 
+//     1000,
+//     1000,
+//     rab.width, rab.height);
+
+// XRectangle rab;
+// rab.x = 0;
+// rab.y = 0;
+// rab.height = font->height;
+// rab.width = font->max_advance_width;
+// XftDrawRect(draw, &xft_font_color, 
+//     50, 100,
+//     // term.cursor_x,
+//     // term.cursor_y - font->ascent, 
+//     rab.width, rab.height);
+
+int xfd = XConnectionNumber(display);
+char buf[256];
+// while(XPending(display)) {
+while (1) {
+  fd_set rfd;
+  FD_ZERO(&rfd);
+  FD_SET(masterFd, &rfd);
+  FD_SET(xfd, &rfd);
+  //   struct timespec seltv, *tv;
+  // tv = timeout >= 0 ? &seltv : NULL;
+
+  if (pselect(MAX(xfd, masterFd) + 1, &rfd, NULL, NULL, NULL, NULL) < 0) {
+    if (errno == EINTR)
+      continue;
+    die("select failed: %s\n", strerror(errno));
   }
-  // term.lines = malloc(sizeof(Line*) * term.rows);
-  // for(int i = 0; i < term.rows; i++) {
-  //   term.lines[i] = malloc(sizeof(Line) * term.cols);
-  // }
 
-  display = XOpenDisplay(NULL);
-  printf("Dispay opened\n");
+  if (FD_ISSET(masterFd, &rfd)) {
+    ssize_t numRead = read(masterFd, buf, 256);
+    printf("**** numRead from masterFd: %zd\n", numRead);
+    // printf("And what the heck did I actually read?: %s\n", buf);
 
-  int screen = XDefaultScreen(display);
-  Visual *visual = XDefaultVisual(display, screen);
-
-  Window parent = XRootWindow(display, screen);
-
-  XColor grey;
-  Colormap colormap = DefaultColormap(display, screen);
-  XParseColor(display, colormap, "#808080", &grey);
-  XAllocColor(display, colormap, &grey);
-
-  XSetWindowAttributes attrs = {0};
-
-  attrs.background_pixel = grey.pixel;
-  attrs.colormap = XCreateColormap(display, parent, visual, AllocNone);
-  attrs.event_mask = ExposureMask | KeyPressMask | StructureNotifyMask;
-
-  Window window = XCreateWindow(
-      display, parent, 0, 0, width, height, 0, XDefaultDepth(display, screen),
-      InputOutput, visual, CWBackPixel | CWColormap | CWEventMask, &attrs);
-
-  if (!window)
-    die("XCreateWindow failed\n");
-
-  printf("Complete, window id is %lu\n", window);
-
-  FcPattern *match = loadFont();
-  XftFont *font = openXft(display, match);
-  draw = XftDrawCreate(display, window, visual, colormap);
-
-  XRenderColor xr = {0x0000, 0x0000, 0x0000, 0xffff};
-  XftColorAllocValue(display, visual, colormap, &xr, &xft_font_color);
-
-  XRenderColor bgxr = {grey.red, grey.green, grey.blue, 0xffff};
-  XftColorAllocValue(display, visual, colormap, &bgxr, &xft_bg_color);
-
-  printf("xft colors allocated\n");
-
-  printf("\nStarting rendering next\n");
-
-  XMapWindow(display, window);
-  GC gc = XCreateGC(display, window, 0, NULL);
-  XSetForeground(display, gc, BlackPixel(display, screen));
-  XFillRectangle(display, window, gc, 0, 0, 800, 800);
-  // XFreeGC(display, gc);
-
-  XMapWindow(display, window);
-  XFlush(display);
-
-  do {
-    XNextEvent(display, &evt);
-  } while (evt.type != MapNotify);
-  printf("after the do while loop\n");
-
-  // XRectangle rab;
-  // rab.x = 0;
-  // rab.y = 0;
-  // rab.height = font->height;
-  // rab.width = font->max_advance_width;
-  // XftDrawRect(draw, &xft_font_color, 
-  //     1000,
-  //     1000,
-  //     rab.width, rab.height);
-
-  // XRectangle rab;
-  // rab.x = 0;
-  // rab.y = 0;
-  // rab.height = font->height;
-  // rab.width = font->max_advance_width;
-  // XftDrawRect(draw, &xft_font_color, 
-  //     50, 100,
-  //     // term.cursor_x,
-  //     // term.cursor_y - font->ascent, 
-  //     rab.width, rab.height);
-
-  int xfd = XConnectionNumber(display);
-  char buf[256];
-  // while(XPending(display)) {
-  while (1) {
-    fd_set rfd;
-    FD_ZERO(&rfd);
-    FD_SET(masterFd, &rfd);
-    FD_SET(xfd, &rfd);
-    //   struct timespec seltv, *tv;
-    // tv = timeout >= 0 ? &seltv : NULL;
-
-    if (pselect(MAX(xfd, masterFd) + 1, &rfd, NULL, NULL, NULL, NULL) < 0) {
-      if (errno == EINTR)
-        continue;
-      die("select failed: %s\n", strerror(errno));
+    for (ssize_t i = 0; i < numRead; i++) {
+      fprintf(stderr, "%02x ", (unsigned char)buf[i]);
     }
+    printf("\n");
+    printf("----------end------------\n");
+    printf("\n\n\n\n\n");
 
-    if (FD_ISSET(masterFd, &rfd)) {
-      ssize_t numRead = read(masterFd, buf, 256);
-      printf("**** numRead from masterFd: %zd\n", numRead);
-      // printf("And what the heck did I actually read?: %s\n", buf);
-
-      for (ssize_t i = 0; i < numRead; i++) {
-        fprintf(stderr, "%02x ", (unsigned char)buf[i]);
-      }
-      printf("\n");
-      printf("----------end------------\n");
-      printf("\n\n\n\n\n");
-
-      vtParse3(buf, numRead, &term, &cs, handle_csi);
-          // XDrawRectangle(display, window, gc,
-          //     50,// x
-          //     100-font->ascent, // y
-          //     200, // width
-          //     font->height  // height
-          //     );
-          // XFlush(display);
-      // XFlush(display);
-      for(int x = 0; x < term.rows; x++) {
-        if(term.lines[x]->dirty == 1) {
-          // x is the index into the state array...
-          // But for the actual coordinates with the offset taken into account...
-          // if x = 4 and I want it to be 0...
-          // that's (x + offset) % #rows
-          int realx = (x+term.offset) % term.rows;
-          XY c = coord_TermToWin(realx, 0);
-          // XDrawRectangle(display, window, gc,
-          //     c.x,// x
-          //     c.y-font->ascent, // y
-          //     200, // width
-          //     font->height  // height
-          //     );
-          XClearArea(display, window,
-            c.x,// x
-            c.y-font->ascent, // y
-            2000, // width
-            font->height,  // height
-            0
-          );
-          // term.lines[x]->dirty = 0;
-          // XFlush(display);
-      }
-        for(int y = 0; y < term.cols; y++) {
+    vtParse3(buf, numRead, &term, &cs, handle_csi);
+    // XClearWindow(display, window);
+    // XFlush(display);
+    for(int x = 0; x < term.rows; x++) {
+      if(term.lines[x]->dirty == 1) {
+        XY c = coord_TermToWin(x, 0);
+        // XDrawRectangle(display, window, gc,
+        //     c.x,// x
+        //     c.y-font->ascent, // y
+        //     200, // width
+        //     font->height  // height
+        //     );
+        XClearArea(display, window,
+          c.x,              // x
+          c.y-font->ascent, // y
+          2000,             // width
+          font->height,     // height
+          0
+        );
+        // term.lines[x]->dirty = 0;
+        // XFlush(display);
+    }
+        // for(int y = 0; y < term.cols; y++) {
+        int y = 0;
+        while(y < term.cols && term.lines[x]->lineData[y].c != '\0') {
           // if(term.lines[x][y].dirty == 1) {
           // if(term.lines[x][y].c != '\0') {
             // int x_offset = x - term.offset; // 0 - 1 = -1
@@ -359,6 +350,8 @@ int main(int argc, char **argv) {
             // the state and how I'm drawing the cursor...
             // if(term.lines[x][y].dirty == 1) {
             write_char2(&term.lines[x]->lineData[y]);
+            y++;
+            // XFlush(display);
             // term.lines[x][y].dirty = 0;
         }
       }
@@ -378,8 +371,8 @@ int main(int argc, char **argv) {
 
     while (XPending(display)) {
       XNextEvent(display, &evt);
-      printf("---------start-------------\n");
-      printf("Event type is %d\n", evt.type);
+      // printf("---------start-------------\n");
+      // printf("Event type is %d\n", evt.type);
 
       if (evt.type == KeyPress) {
         XKeyEvent *xke = &evt.xkey;

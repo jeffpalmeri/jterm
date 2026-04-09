@@ -16,5 +16,6 @@ void drawCursor(XftFont *font, XftColor *color, XftDraw *draw);
 void eraseCursor(XftFont *font, XftColor *color, XftDraw *draw);
 
 XY coord_TermToWin(int x, int y);
+int calc_top(Term *term);
 
 #endif

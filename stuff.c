@@ -20,11 +20,19 @@ extern XftDraw *draw;
 extern XftColor xft_font_color;
 extern XftColor xft_bg_color;
 
+int calc_top(Term *term) {
+  if(term->offset < term->rows) {
+    return 0; 
+  }
+  return (term->cursor_x + 1)%term->rows;
+}
+
 void printTermState(Term *term) {
   printf("========\n");
   printf("cursor_x: %i\n", term->cursor_x);
   printf("cursor_y: %i\n", term->cursor_y);
   printf("offset: %i\n", term->offset);
+  printf("top: %i\n", calc_top(term));
   for(int i = 0; i < term->rows; i++) {
     printf("[");
     for(int j = 0; j < term->cols; j++) {
@@ -33,8 +41,12 @@ void printTermState(Term *term) {
       printf("%c, ", term->lines[i]->lineData[j].c);
     }
     printf("]");
-    if(i == (term->cursor_x + term->offset) % term->rows) {
+    // if(i == (term->cursor_x + term->offset) % term->rows) {
+    if(i == (term->cursor_x + 0) % term->rows) {
       printf(" <----- current");
+      if(term->lines[i]->dirty == 1) {
+        printf(" [DIRTY]");
+      }
     }
     printf("\n");
   }
@@ -74,12 +86,14 @@ void printTermState2(Term *term) {
 }
 
 XY coord_TermToWin(int x, int y) {
-  int x_offset = x - term.offset;
-  if(x_offset < 0) {
-    x_offset += term.rows;
+  int true_x = x;
+  if(term.offset >= term.rows) {
+    int top_row = calc_top(&term);
+    true_x = ((x - top_row) + term.rows) % term.rows;
   }
   int xp = MARGIN_LEFT + (y)*font->max_advance_width;
-  int yp = MARGIN_TOP + ((x)*(font->ascent * ASCENT_MULT));
+  int yp = MARGIN_TOP + ((true_x)*(font->ascent * ASCENT_MULT));
+
   return (XY){xp, yp};
 }
 
@@ -256,8 +270,7 @@ void write_char2(JGlyph *gly) {
     if(x_offset < 0) {
       x_offset += term.rows;
     }
-    // XY c = coord_TermToWin(gly->row, line->col);
-    XY c = coord_TermToWin(x_offset, gly->col);
+    XY c = coord_TermToWin(gly->row, gly->col);
 
     XftDrawRect(draw, &xft_bg_color, c.x, c.y - font->ascent, cell_width, cell_height); // width and height? 
     XftDrawSetClipRectangles(draw, c.x, c.y - font->ascent, &r, 1); 

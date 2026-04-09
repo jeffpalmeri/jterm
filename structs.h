@@ -34,6 +34,7 @@ typedef struct Term {
   int old_cursor_x;
   int old_cursor_y;
   int offset;
+  int top;
   Line **lines;
 } Term;
 
