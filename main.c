@@ -254,11 +254,12 @@ int main(int argc, char **argv) {
       // de_printf("**** numRead from masterFd: %zd\n", numRead);
       // de_printf("And what the heck did I actually read?: %s\n", buf);
 
-      fprintf(stdout, "\n----------start------------\n");
-      for (ssize_t i = 0; i < numRead; i++) {
-        fprintf(stdout, "%02x ", (unsigned char)buf[i]);
-      }
-      fprintf(stdout, "\n----------end------------\n");
+      // Helpful debug for seeing shell bytes
+      // fprintf(stdout, "\n----------start------------\n");
+      // for (ssize_t i = 0; i < numRead; i++) {
+      //   fprintf(stdout, "%02x ", (unsigned char)buf[i]);
+      // }
+      // fprintf(stdout, "\n----------end------------\n");
 
       vtParse(buf, numRead, &term, &cs, handle_csi);
       renderTerm();

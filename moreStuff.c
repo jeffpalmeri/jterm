@@ -14,7 +14,7 @@ int calc_top(Term *term) {
 }
 
 void vtParse(const char *p, int size, Term *term, CS *cs,
-              void (*handle_csi)(CS *cs)) {
+              void (*handle_csi)(CS *cs, Term *term)) {
   for (int i = 0; i < size; i++) {
     char b = p[i];
     if (term->esc == 0) {
@@ -43,6 +43,10 @@ void vtParse(const char *p, int size, Term *term, CS *cs,
         // de_printf("THIS IS A CARRIAGE RETURN!!!!!!!\n");
       } else if (*(p + i) == 9) {
         // de_printf("THIS IS A HORIZONTAL TAB!!!!!!!\n");
+      } else if (*(p+i) == 8) {
+        // Backspace
+      } else if (*(p+i) == 7) {
+        // Bell/Alert
       } else {
         term->lines[x]->lineData[term->cursor_y] = (JGlyph){
             .row = x,
@@ -79,7 +83,7 @@ void vtParse(const char *p, int size, Term *term, CS *cs,
         parse_csi(cs);
         de_printf("PRINTING CS!!\n");
         printCS(cs);
-        handle_csi(cs);
+        handle_csi(cs, term);
       }
     }
   }
@@ -89,7 +93,7 @@ void vtParse(const char *p, int size, Term *term, CS *cs,
 
 int csi_ending_char(char b) { return b > 64 && b < 126; }
 
-void handle_csi(CS *cs) {
+void handle_csi(CS *cs, Term *term) {
   switch (cs->mode[0]) {
   case 'h':
     // turn on bracketed paste mode (will implement later)
@@ -99,6 +103,41 @@ void handle_csi(CS *cs) {
     break;
   case 'm':
     break;
+  case 'K':
+    switch (cs->arg[0]) {
+      case 0: {
+        int x = term->cursor_x;
+        // 1. Delete char to the left... actually need to shift everything over to the left?
+        int i = 0;
+        while(term->lines[x]->lineData[i].c != '\0') i++;
+        // Now i is the last index of data in the row...
+        // Need to shift over starting from here and going to cursor
+        // [a b c d e f g]
+        //        ^del
+        // [a b c e f g]
+        char prevChar = '\0';
+        for(int j = i; j >= term->cursor_y; j--) {
+          JGlyph *cur = &term->lines[x]->lineData[j]; // g
+          JGlyph *prev = &term->lines[x]->lineData[j-1]; // f
+          char temp = cur->c;
+          cur->c = prevChar;
+          prevChar = prev->c;
+          prev->c = temp;
+        }
+        // term->lines[term->cursor_x]->lineData[term->cursor_y];
+        // 2. Set old cursor position
+        term->old_cursor_x = term->cursor_x;
+        term->old_cursor_y = term->cursor_y;
+        // 3. Move cursor left 1
+        term->cursor_y -= 1;
+        // term->lines[term->cursor_x]->dirty = 1; // Not needed right now
+        break;
+      }
+      case 1:
+        break;
+      case 2:
+        break;
+    }
   }
   memset(cs, 0, sizeof(*cs));
 }

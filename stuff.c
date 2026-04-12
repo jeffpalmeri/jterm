@@ -149,7 +149,7 @@ void write_char(JGlyph *gly) {
   XftDrawSetClip(draw, 0);
 
   // XFlush(display);
-  // printTermState(&term);
+  printTermState(&term);
 }
 
 void renderTerm() {
@@ -159,6 +159,17 @@ void renderTerm() {
       // The idea here is the XClearArea is not needed if writing
       // on the same line as before. I just tried this and it seems
       // to work, but I should think more about if it's solid logic.
+      //
+      // I'm adding in backspace/delete rigth now and making a note,
+      // because it's working but was confusing why it was working lol.
+      // Currently if I hit backspace on a line, the line does not get
+      // cleared because of this condition, but the cursor gets drawn
+      // where the previous character was, so it does draw correctly.
+      // Then when another character is typed, the cursor gets erased,
+      // the new char drawn, and then the new cursor drawn. This works
+      // for now but I could see this not working for larger region
+      // deletes. I'll actually need to clear the line first before
+      // re-drawing the line. I'll address this when I come across it.
       if (term.old_cursor_x != term.cursor_x) {
         XY c = coord_TermToWin(x, 0);
         XClearArea(display, window,

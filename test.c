@@ -80,12 +80,23 @@ int main(int argc, char *argv[])
   };
   TestCase(p, 8, &expectCS3);
 
+  const char singleBackspace[3] = {0x1b, 0x5b, 0x4b};
+  p = singleBackspace;
+  CS expectCS4 = {
+    .buf = "K",
+    .len = 1,
+    .priv = '\0',
+    .narg = 1,
+    .arg = {0},
+    .mode = "K",
+  };
+  TestCase(p, 3, &expectCS4);
 
   return 0;
 }
 
 void wc(const char *c) {};
-void handle(CS *cs) {};
+void handle(CS *cs, Term *ts) {};
 
 /*
  * TestCase #1
