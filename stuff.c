@@ -89,20 +89,12 @@ void drawCursor(XftFont *font, XftColor *color, XftDraw *draw) {
   XY c = coord_TermToWin(term.cursor_x, term.cursor_y);
   XftDrawRect(draw, color, c.x, c.y - font->ascent, rab.width, rab.height);
 
-  // if(term.lines[term.cursor_x]->lineData[term.cursor_y].c != '\0') {
-  //   write_char(&term.lines[term.cursor_x]->lineData[term.cursor_y]);
-  // }
+  if(term.lines[term.cursor_x]->lineData[term.cursor_y].c != '\0') {
+    write_char(&term.lines[term.cursor_x]->lineData[term.cursor_y]);
+  }
 }
 
 void eraseCursor(XftFont *font, XftColor *color, XftDraw *draw) {
-  // XRectangle rab;
-  // rab.x = 0;
-  // rab.y = 0;
-  // rab.height = font->height;
-  // rab.width = font->max_advance_width;
-  // XY c = coord_TermToWin(term.old_cursor_x, term.old_cursor_y);
-  // XftDrawRect(draw, color, c.x, c.y - font->ascent, rab.width, rab.height);
-
   if(term.lines[term.old_cursor_x]->lineData[term.old_cursor_y].c != '\0') {
     write_char(&term.lines[term.old_cursor_x]->lineData[term.old_cursor_y]);
   } else {
@@ -151,7 +143,15 @@ void write_char(JGlyph *gly) {
   }
   XY c = coord_TermToWin(gly->row, gly->col);
 
-  XftDrawRect(draw, &xft_bg_color, c.x, c.y - font->ascent, cell_width,
+  XftColor *charColor = &xft_font_color;
+  XftColor *recColor = &xft_bg_color;
+
+  if(term.cursor_x == gly->row && term.cursor_y == gly->col) {
+    charColor = &xft_bg_color;
+    recColor = &xft_font_color;
+  }
+
+  XftDrawRect(draw, recColor, c.x, c.y - font->ascent, cell_width,
               cell_height); // width and height?
   XftDrawSetClipRectangles(draw, c.x, c.y - font->ascent, &r, 1);
   XftGlyphFontSpec spec;
@@ -160,7 +160,7 @@ void write_char(JGlyph *gly) {
   spec.x = c.x;
   spec.y = c.y;
 
-  XftDrawGlyphFontSpec(draw, &xft_font_color, &spec, 1);
+  XftDrawGlyphFontSpec(draw, charColor, &spec, 1);
 
   XftDrawSetClip(draw, 0);
 
