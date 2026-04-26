@@ -97,6 +97,7 @@ int main(int argc, char *argv[])
 
 void wc(const char *c) {};
 void handle(CS *cs, Term *ts) {};
+void p_c(Term *term, int i, const char *p) {};
 
 /*
  * TestCase #1
@@ -108,7 +109,7 @@ void TestCase(const char *bytes, int num_bytes, CS *expectCs) {
   memset(&cs, 0, sizeof(cs));
   memset(&cs.buf, 0xAA, sizeof(cs.buf));
 
-  vtParse(bytes, num_bytes, &term, &cs, handle);
+  vtParse(bytes, num_bytes, &term, &cs, handle, p_c);
   // assert(strcmp(cs.buf, expectCs->buf) == 0);
   // cs.buf[6] = 'a';
   // printf("first %x\n", cs.buf[6]);

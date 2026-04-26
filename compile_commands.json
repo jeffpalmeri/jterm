@@ -72,17 +72,19 @@
     "output": "moreStuff.o"
   },
   {
-    "file": "EventHandlers/KeyPress.c",
+    "file": "fontStuff.c",
     "arguments": [
       "gcc",
       "-c",
       "-g",
       "-O0",
-      "EventHandlers/KeyPress.c",
+      "fontStuff.c",
       "-o",
-      "EventHandlers/KeyPress.o"
+      "fontStuff.o",
+      "-I/usr/include/freetype2",
+      "-I/usr/include/libpng16"
     ],
     "directory": "/home/jeff/personal/xlib-experiments",
-    "output": "EventHandlers/KeyPress.o"
+    "output": "fontStuff.o"
   }
 ]

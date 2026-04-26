@@ -6,6 +6,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+void die(const char *errString, ...) {
+  va_list argPtr;
+
+  va_start(argPtr, errString);
+  vfprintf(stderr, errString, argPtr);
+  va_end(argPtr);
+
+  exit(1);
+}
+
 int calc_top(Term *term) {
   if (term->offset < term->rows) {
     return 0;
@@ -36,8 +46,57 @@ void handle_control(char p, Term *term) {
   }
 }
 
+void put_char(Term *term, int i, const char *p) {
+  int cur_top = calc_top(term);
+  int x = term->cursor_x;
+  term->lines[x]->dirty = 1;
+  if (*(p + i) == 10) {
+    // de_printf("THIS IS A NEWLINE!!!!!!!\n");
+    // Don't actually print a new line
+    // Move our x position down a row.
+    term->cursor_x = (x + 1) % term->rows;
+    for (int i = 0; i < term->cols; i++) {
+      // Clear the terminal state row
+      term->lines[(x + 1) % term->rows]->lineData[i].c = '\0';
+      // Set the NEXT line as dirty so that it gets visually cleared
+    }
+    term->lines[(x + 1) % term->rows]->dirty = 1;
+    term->offset++;
+    term->cursor_y = 0;
+  } else if (*(p + i) == 13) {
+    // de_printf("THIS IS A CARRIAGE RETURN!!!!!!!\n");
+  } else if (*(p + i) == 9) {
+    // de_printf("THIS IS A HORIZONTAL TAB!!!!!!!\n");
+  } else if (*(p + i) == 8) {
+    // Backspace
+  } else if (*(p + i) == 7) {
+    // Bell/Alert
+  } else {
+    term->lines[x]->lineData[term->cursor_y] = (JGlyph){
+        .row = x,
+        .col = term->cursor_y,
+        .c = *(p + i),
+    };
+    if (term->cursor_y + 1 >= term->cols) {
+      term->cursor_y = 0;
+      term->cursor_x = (x + 1) % term->rows;
+      term->lines[(x + 1) % term->rows]->dirty = 1;
+      term->offset++;
+    } else {
+      term->cursor_y++;
+    }
+  }
+  int new_top = calc_top(term);
+  if (cur_top != new_top) {
+    for (int i = 0; i < term->rows; i++) {
+      term->lines[i]->dirty = 1;
+    }
+  }
+};
+
 void vtParse(const char *p, int size, Term *term, CS *cs,
-             void (*handle_csi)(CS *cs, Term *term)) {
+             void (*handle_csi)(CS *cs, Term *term),
+             void (*putChar)(Term *term, int i, const char *p)) {
   for (int i = 0; i < size; i++) {
     char b = p[i];
     if (isControl(p[i])) {
@@ -49,52 +108,7 @@ void vtParse(const char *p, int size, Term *term, CS *cs,
         term->esc |= ESC_START;
         continue;
       }
-
-      int cur_top = calc_top(term);
-      int x = term->cursor_x;
-      term->lines[x]->dirty = 1;
-      if (*(p + i) == 10) {
-        // de_printf("THIS IS A NEWLINE!!!!!!!\n");
-        // Don't actually print a new line
-        // Move our x position down a row.
-        term->cursor_x = (x + 1) % term->rows;
-        for (int i = 0; i < term->cols; i++) {
-          // Clear the terminal state row
-          term->lines[(x + 1) % term->rows]->lineData[i].c = '\0';
-          // Set the NEXT line as dirty so that it gets visually cleared
-        }
-        term->lines[(x + 1) % term->rows]->dirty = 1;
-        term->offset++;
-        term->cursor_y = 0;
-      } else if (*(p + i) == 13) {
-        // de_printf("THIS IS A CARRIAGE RETURN!!!!!!!\n");
-      } else if (*(p + i) == 9) {
-        // de_printf("THIS IS A HORIZONTAL TAB!!!!!!!\n");
-      } else if (*(p + i) == 8) {
-        // Backspace
-      } else if (*(p + i) == 7) {
-        // Bell/Alert
-      } else {
-        term->lines[x]->lineData[term->cursor_y] = (JGlyph){
-            .row = x,
-            .col = term->cursor_y,
-            .c = *(p + i),
-        };
-        if (term->cursor_y + 1 >= term->cols) {
-          term->cursor_y = 0;
-          term->cursor_x = (x + 1) % term->rows;
-          term->lines[(x + 1) % term->rows]->dirty = 1;
-          term->offset++;
-        } else {
-          term->cursor_y++;
-        }
-      }
-      int new_top = calc_top(term);
-      if (cur_top != new_top) {
-        for (int i = 0; i < term->rows; i++) {
-          term->lines[i]->dirty = 1;
-        }
-      }
+      putChar(term, i, p);
       continue;
     }
     if (term->esc & ESC_START) {
@@ -136,6 +150,7 @@ void handle_csi(CS *cs, Term *term) {
       term->old_cursor_y = term->cursor_y;
       term->cursor_y++;
     }
+    term->lines[term->cursor_x]->dirty = 1;
     break;
   case 'P': { // DCH
     int x = term->cursor_x;

@@ -1,6 +1,8 @@
 #ifndef STRUCTS
 #define STRUCTS
 
+#include <X11/Xft/Xft.h>
+
 #ifdef DEBUG
 #define de_printf(...) {\
   printf(__VA_ARGS__);\
@@ -52,6 +54,13 @@ typedef struct XY {
 enum terminal_mode {
   csi
 };
+
+typedef struct Fonts {
+  XftFont *normal;
+  XftFont *bold;
+  XftFont *italic;
+  XftFont *bold_italic;
+} Fonts;
 
 enum escape_state {
   ESC_START = 1 << 0, // 1

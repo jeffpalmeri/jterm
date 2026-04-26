@@ -18,6 +18,7 @@
 #include "moreStuff.h"
 #include "structs.h"
 #include "stuff.h"
+#include "fontStuff.h"
 #include "EventHandlers/EventHandlers.h"
 
 #define MAX(a, b) ((a) < (b) ? (b) : (a))
@@ -26,23 +27,15 @@
 int height = 1200;
 int width = 1600;
 
-void die(const char *errString, ...) {
-  va_list argPtr;
-
-  va_start(argPtr, errString);
-  vfprintf(stderr, errString, argPtr);
-  va_end(argPtr);
-
-  exit(1);
-}
-
 Display *display;
-XftFont *font;
+Fonts fonts;
 XftColor xft_font_color;
 XftColor xft_bg_color;
 XftDraw *draw;
 Term term;
 Window window;
+Colormap colormap;
+Visual *visual;
 CS cs;
 XEvent evt;
 int masterFd;
@@ -53,86 +46,56 @@ static void (*handler[LASTEvent])(XEvent *) = {
     [KeyPress] = handleKeyPress,
 };
 
-char *font1 = "Hack Nerd Font:pixelsize=28:antialias=true:autohint=true";
+char *hack_nerd_font_string = "Hack Nerd Font:pixelsize=28:antialias=true:autohint=true";
 
-FcPattern *loadFont() {
-  if (!FcInit()) {
-    die("FcInit failed\n");
+void run() {
+  do {
+    XNextEvent(display, &evt);
+  } while (evt.type != MapNotify);
+  de_printf("after the do while loop\n");
+
+  int xfd = XConnectionNumber(display);
+  char buf[256];
+  while (1) {
+    fd_set rfd;
+    FD_ZERO(&rfd);
+    FD_SET(masterFd, &rfd);
+    FD_SET(xfd, &rfd);
+    //   struct timespec seltv, *tv;
+    // tv = timeout >= 0 ? &seltv : NULL;
+
+    if (pselect(MAX(xfd, masterFd) + 1, &rfd, NULL, NULL, NULL, NULL) < 0) {
+      if (errno == EINTR)
+        continue;
+      die("select failed: %s\n", strerror(errno));
+    }
+
+    if (FD_ISSET(masterFd, &rfd)) {
+      ssize_t numRead = read(masterFd, buf, 256);
+      de_printf("**** numRead from masterFd: %zd\n", numRead);
+      de_printf("And what the heck did I actually read?: %.*s\n", numRead, buf);
+      // de_printf("And what the heck did I actually read2?: 0x%02x\n", (unsigned char)buf);
+
+      // Helpful debug for seeing shell bytes
+      fprintf(stdout, "\n----------start------------\n");
+      for (ssize_t i = 0; i < numRead; i++) {
+        fprintf(stdout, "%02x ", (unsigned char)buf[i]);
+      }
+      fprintf(stdout, "\n----------end------------\n");
+
+      vtParse(buf, numRead, &term, &cs, handle_csi, put_char);
+      renderTerm();
+    }
+
+    while (XPending(display)) {
+      XNextEvent(display, &evt);
+      // de_printf("---------start-------------\n");
+      // de_printf("Event type is %d\n", evt.type);
+      if (handler[evt.type]) {
+        handler[evt.type](&evt);
+      }
+    }
   }
-
-  FcPattern *pattern = FcNameParse((const FcChar8 *)font1);
-  if (!pattern) {
-    FcFini();
-    die("Could not parse font name\n");
-  }
-
-  FcChar8 *family;
-  FcChar8 *file;
-  double size;
-  double pixelsize;
-
-  if (FcPatternGetString(pattern, FC_FAMILY, 0, &family) == FcResultMatch) {
-    de_printf("Font family: %s\n", family);
-  }
-
-  if (FcPatternGetString(pattern, FC_FILE, 0, &file) == FcResultMatch) {
-    de_printf("Font file: %s\n", file);
-  } else {
-    de_printf("No file?\n");
-  }
-
-  if (FcPatternGetDouble(pattern, FC_PIXEL_SIZE, 0, &pixelsize) ==
-      FcResultMatch) {
-    de_printf("Pixel size: %.1f\n", pixelsize);
-  } else {
-    de_printf("No size?\n");
-  }
-
-  FcPatternAddDouble(pattern, FC_PIXEL_SIZE, 12);
-  FcPatternAddDouble(pattern, FC_SIZE, 12);
-
-  if (FcPatternGetDouble(pattern, FC_SIZE, 0, &size) == FcResultMatch) {
-    de_printf("Font size: %.1f\n", size);
-  } else {
-    de_printf("No size?\n");
-  }
-
-  de_printf("*** Doing substitutes and matching now ***\n");
-
-  FcConfigSubstitute(NULL, pattern, FcMatchPattern);
-  FcDefaultSubstitute(pattern);
-  FcResult result;
-  FcPattern *match = FcFontMatch(NULL, pattern, &result);
-
-  if (result != FcResultMatch) {
-    fprintf(stderr, "Font match failed: %d\n", result);
-  }
-
-  de_printf("Font match seems to have succeeded\n");
-  de_printf("Trying file again now\n");
-
-  if (FcPatternGetString(match, FC_FILE, 0, &file) == FcResultMatch) {
-    de_printf("Font file: %s\n", file);
-  } else {
-    fprintf(stderr, "No file, but should have one\n");
-  }
-
-  de_printf("*** Moving on to Xft now ***\n");
-
-  return match;
-}
-
-XftFont *openXft(Display *display, FcPattern *match) {
-  font = XftFontOpenPattern(display, match);
-  if (!font)
-    die("XftFontOpenPattern failed\n");
-
-  de_printf("Xft font opened successfully\n");
-
-  de_printf("Loaded font: ascent=%d descent=%d max_advance=%d\n", font->ascent,
-            font->descent, font->max_advance_width);
-
-  return font;
 }
 
 int main(int argc, char **argv) {
@@ -149,7 +112,7 @@ int main(int argc, char **argv) {
   if (ioctl(STDIN_FILENO, TIOCGWINSZ, &ws) < 0) {
     die("ioctl-TIOCGWINSZ");
   }
-  // int masterFd = ptyMasterOpen(slaveName, maxSnLen);
+
   pid_t childPid = ptyFork(&masterFd, slaveName, MAX_SNAME, &ttyOrig, &ws);
   if (childPid == 0) {
     // shell = getenv("SHELL");
@@ -186,12 +149,12 @@ int main(int argc, char **argv) {
   de_printf("Dispay opened\n");
 
   int screen = XDefaultScreen(display);
-  Visual *visual = XDefaultVisual(display, screen);
+  visual = XDefaultVisual(display, screen);
 
   Window parent = XRootWindow(display, screen);
 
   XColor grey;
-  Colormap colormap = DefaultColormap(display, screen);
+  colormap = DefaultColormap(display, screen);
   XParseColor(display, colormap, "#808080", &grey);
   XAllocColor(display, colormap, &grey);
 
@@ -210,8 +173,8 @@ int main(int argc, char **argv) {
 
   de_printf("Complete, window id is %lu\n", window);
 
-  FcPattern *match = loadFont();
-  XftFont *font = openXft(display, match);
+  fonts = (Fonts){NULL, NULL, NULL, NULL};
+  loadFonts(hack_nerd_font_string);
   draw = XftDrawCreate(display, window, visual, colormap);
 
   XRenderColor xr = {0x0000, 0x0000, 0x0000, 0xffff};
@@ -232,100 +195,10 @@ int main(int argc, char **argv) {
   XMapWindow(display, window);
   XFlush(display);
 
-  do {
-    XNextEvent(display, &evt);
-  } while (evt.type != MapNotify);
-  de_printf("after the do while loop\n");
-
-  int xfd = XConnectionNumber(display);
-  char buf[256];
-  while (1) {
-    fd_set rfd;
-    FD_ZERO(&rfd);
-    FD_SET(masterFd, &rfd);
-    FD_SET(xfd, &rfd);
-    //   struct timespec seltv, *tv;
-    // tv = timeout >= 0 ? &seltv : NULL;
-
-    if (pselect(MAX(xfd, masterFd) + 1, &rfd, NULL, NULL, NULL, NULL) < 0) {
-      if (errno == EINTR)
-        continue;
-      die("select failed: %s\n", strerror(errno));
-    }
-
-    if (FD_ISSET(masterFd, &rfd)) {
-      ssize_t numRead = read(masterFd, buf, 256);
-      de_printf("**** numRead from masterFd: %zd\n", numRead);
-      de_printf("And what the heck did I actually read?: %.*s\n", numRead, buf);
-      // de_printf("And what the heck did I actually read2?: 0x%02x\n", (unsigned char)buf);
-
-      // Helpful debug for seeing shell bytes
-      fprintf(stdout, "\n----------start------------\n");
-      for (ssize_t i = 0; i < numRead; i++) {
-        fprintf(stdout, "%02x ", (unsigned char)buf[i]);
-      }
-      fprintf(stdout, "\n----------end------------\n");
-
-      vtParse(buf, numRead, &term, &cs, handle_csi);
-      renderTerm();
-    }
-
-    while (XPending(display)) {
-      XNextEvent(display, &evt);
-      // de_printf("---------start-------------\n");
-      // de_printf("Event type is %d\n", evt.type);
-      if (handler[evt.type]) {
-        handler[evt.type](&evt);
-      }
-    }
-  }
+  run();
 
   return 0;
 }
-
-// (lldb) p term.lines[0][0]
-// (Line)  (row = 50, col = 100, dirty = 1, c = 's')
-// (lldb) p term.lines[0][1]
-// (Line)  (row = 50, col = 101, dirty = 1, c = 'h')
-// (lldb) p term.lines[0][2]
-// (Line)  (row = 50, col = 102, dirty = 1, c = '-')
-// (lldb) p term.lines[0][3]
-// (Line)  (row = 50, col = 103, dirty = 1, c = '5')
-// (lldb) p term.lines[0][4]
-// (Line)  (row = 50, col = 104, dirty = 1, c = '.')
-// (lldb) p term.lines[0][5]
-// (Line)  (row = 50, col = 105, dirty = 1, c = '3')
-// (lldb) p term.lines[0][6]
-// (Line)  (row = 50, col = 106, dirty = 1, c = '$')
-// (lldb) p term.lines[0][7]
-// (Line)  (row = 50, col = 107, dirty = 1, c = ' ')
-// (lldb) p term.lines[0][8]
-// (Line)  (row = 0, col = 0, dirty = 0, c = '\0')
-//
-// break set --file main.c --line 298 -c '(term.lines[xp][y].dirty == 1)'
-// break set --file main.c --line 296 -c '(term.offset == 1)'
-
-/*
-   const Lines = [
-      {
-        dirty = 1,
-        data: {
-          row: 0,
-          col: 0,
-          c: "j"
-        }
-      },
-      {
-        dirty = 0,
-        data: {
-          row: 0,
-          col: 1,
-          c: "e"
-        }
-      }
-   ]
- * */
-
 
 // #define XK_BackSpace   0xff08  /* U+0008 BACKSPACE */
 // #define XK_Left        0xff51  /* Move left, left arrow */
