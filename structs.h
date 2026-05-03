@@ -24,6 +24,7 @@ typedef struct JGlyph {
   int row;
   int col;
   char c;
+  int mode;
 } JGlyph;
 
 typedef struct Line {
@@ -65,6 +66,12 @@ typedef struct Fonts {
 enum escape_state {
   ESC_START = 1 << 0, // 1
   ESC_CSI   = 1 << 1, // 2;
+};
+
+enum mode_state {
+  MODE_NONE   = 0 << 0,
+  MODE_BOLD   = 1 << 0,
+  MODE_ITALIC = 2 << 0,
 };
 
 #endif

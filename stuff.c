@@ -152,11 +152,20 @@ void write_char(JGlyph *gly) {
     recColor = &xft_font_color;
   }
 
+  XftFont *glyph_font = fonts.normal;
+  if(gly->mode & MODE_BOLD && gly->mode & MODE_ITALIC) {
+    glyph_font = fonts.bold_italic;
+  } else if(gly->mode & MODE_BOLD) {
+    glyph_font = fonts.bold;
+  } else if(gly->mode &MODE_ITALIC) {
+    glyph_font = fonts.italic;
+  }
+
   XftDrawRect(draw, recColor, c.x, c.y - fonts.normal->ascent, cell_width,
               cell_height); // width and height?
   XftDrawSetClipRectangles(draw, c.x, c.y - fonts.normal->ascent, &r, 1);
   XftGlyphFontSpec spec;
-  spec.font = fonts.normal;
+  spec.font = glyph_font;
   spec.glyph = glyph;
   spec.x = c.x;
   spec.y = c.y;

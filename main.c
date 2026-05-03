@@ -56,8 +56,8 @@ void run() {
 
   int xfd = XConnectionNumber(display);
   char buf[256];
+  fd_set rfd;
   while (1) {
-    fd_set rfd;
     FD_ZERO(&rfd);
     FD_SET(masterFd, &rfd);
     FD_SET(xfd, &rfd);
@@ -118,6 +118,7 @@ int main(int argc, char **argv) {
     // shell = getenv("SHELL");
     // if(shell == NULL || *shell == '\0') shell = "/bin/sh";
     shell = "/bin/sh";
+    // shell = "/bin/zsh";
     execlp(shell, shell, (char *)NULL);
     die("execlp"); // If we get here, something went wrong
   }
@@ -221,3 +222,4 @@ int main(int argc, char **argv) {
 //                ^=======
 // /usr/include/X11/keysymdef.h
 // tomoveto
+// printf "normal \033[1mbold\033[0m normal\n"

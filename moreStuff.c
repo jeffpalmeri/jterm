@@ -76,6 +76,7 @@ void put_char(Term *term, int i, const char *p) {
         .row = x,
         .col = term->cursor_y,
         .c = *(p + i),
+        .mode = term->mode,
     };
     if (term->cursor_y + 1 >= term->cols) {
       term->cursor_y = 0;
@@ -142,11 +143,24 @@ void handle_csi(CS *cs, Term *term) {
   case 'l':
     // turn off bracketed paste mode (will implement later)
     break;
-  case 'm': // SGR -- Terminal attribute (color)
+  case 'm': // SGR -- Select Graphic Rendition (Terminal attribute (i.e color))
+    // There can be more than one arg, so this will need to loop at some point
+    // instead of just looking at the first arg only.
+    switch (cs->arg[0]) {
+    case 0:
+      term->mode = 0;
+      break;
+    case 1:
+      term->mode |= MODE_BOLD;
+      break;
+    case 3:
+      term->mode |= MODE_ITALIC;
+      break;
+    }
     break;
   case 'C': // CUF
     // Note: I'm not taking into account the arg right now and assuming it's 1
-    if(term->cursor_y + 1 <= term->cols) {
+    if (term->cursor_y + 1 <= term->cols) {
       term->old_cursor_y = term->cursor_y;
       term->cursor_y++;
     }
@@ -154,18 +168,20 @@ void handle_csi(CS *cs, Term *term) {
     break;
   case 'P': { // DCH
     int x = term->cursor_x;
-    for(int i = term->cursor_y; i < term->cols - 1; i++) {
-      if(term->lines[x]->lineData[i].c == '\0') break;
-      term->lines[x]->lineData[i].c = term->lines[x]->lineData[i+1].c;
+    for (int i = term->cursor_y; i < term->cols - 1; i++) {
+      if (term->lines[x]->lineData[i].c == '\0')
+        break;
+      term->lines[x]->lineData[i].c = term->lines[x]->lineData[i + 1].c;
     }
     break;
   }
   case 'K': // EL (Clear line)
     switch (cs->arg[0]) {
     case 0: {
-      for(int i = term->cursor_y; i < term->cols; i++) {
-        if(term->lines[term->cursor_x]->lineData[i].c == '\0') break;
-          term->lines[term->cursor_x]->lineData[i].c = '\0';
+      for (int i = term->cursor_y; i < term->cols; i++) {
+        if (term->lines[term->cursor_x]->lineData[i].c == '\0')
+          break;
+        term->lines[term->cursor_x]->lineData[i].c = '\0';
       }
       break;
     }
@@ -174,20 +190,21 @@ void handle_csi(CS *cs, Term *term) {
     case 2:
       break;
     }
-    case '@': { // ICH
-      // Insert blank
-      int x = term->cursor_x;
-      int y = term->cursor_y;
-      int i = 0;
-      for(; i < term->cols; i++) {
-        if(term->lines[x]->lineData[i].c == '\0') break;
-      }
-      for(; i > y; i--) {
-        term->lines[x]->lineData[i].c = term->lines[x]->lineData[i-1].c;
-      }
-      term->lines[x]->lineData[y].c = ' ';
-      break;
+  case '@': { // ICH
+    // Insert blank
+    int x = term->cursor_x;
+    int y = term->cursor_y;
+    int i = 0;
+    for (; i < term->cols; i++) {
+      if (term->lines[x]->lineData[i].c == '\0')
+        break;
     }
+    for (; i > y; i--) {
+      term->lines[x]->lineData[i].c = term->lines[x]->lineData[i - 1].c;
+    }
+    term->lines[x]->lineData[y].c = ' ';
+    break;
+  }
   }
   memset(cs, 0, sizeof(*cs));
 }
