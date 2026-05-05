@@ -77,6 +77,8 @@ void put_char(Term *term, int i, const char *p) {
         .col = term->cursor_y,
         .c = *(p + i),
         .mode = term->mode,
+        .fg = term->fg,
+        .bg = term->bg,
     };
     if (term->cursor_y + 1 >= term->cols) {
       term->cursor_y = 0;
@@ -156,6 +158,20 @@ void handle_csi(CS *cs, Term *term) {
     case 3:
       term->mode |= MODE_ITALIC;
       break;
+    }
+  default:
+    if (cs->arg[0] >= 30 && cs->arg[0] <= 37) { // fg
+      // Need to figure out where to put this color right now...
+      // No char or glyph at this point to put it directly on.
+      // st seems to put it in information about the cursor.
+      // Maybe I could have color mode/attribute instead though.
+      term->fg = cs->arg[0] - 30;
+    } else if (cs->arg[0] >= 90 && cs->arg[0] <= 97) {
+      term->fg = cs->arg[0] - 90 + 8;
+    } else if (cs->arg[0] >= 40 && cs->arg[0] <= 47) {
+      term->bg = cs->arg[0] - 40;
+    } else if (cs->arg[0] >= 100 && cs->arg[0] <= 107) {
+      term->bg = cs->arg[0] - 100 + 8;
     }
     break;
   case 'C': // CUF

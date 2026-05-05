@@ -24,6 +24,29 @@
 #define MAX(a, b) ((a) < (b) ? (b) : (a))
 #define MAX_SNAME 1000
 
+// Copied directly from st config.h
+static const char *colorname[] = {
+	/* 8 normal colors */
+	"black",
+	"red3",
+	"green3",
+	"yellow3",
+	"blue2",
+	"magenta3",
+	"cyan3",
+	"gray90",
+
+	/* 8 bright colors */
+	"gray50",
+	"red",
+	"green",
+	"yellow",
+	"#5c5cff",
+	"magenta",
+	"cyan",
+	"white",
+};
+
 int height = 1200;
 int width = 1600;
 
@@ -39,6 +62,7 @@ Visual *visual;
 CS cs;
 XEvent evt;
 int masterFd;
+Colors colors;
 
 void drawGlyph() {}
 
@@ -125,7 +149,7 @@ int main(int argc, char **argv) {
 
   de_printf("masterFd %i\n", masterFd);
 
-  term = (Term){5, 160, 0, 0, 0, 0, 0, 0, 0, 0};
+  term = (Term){50, 160, 0, 0, 0, 0, 0, 0, 0, 0};
   // How big will each "line" be?
   // #rows * sizeof(Line*),
   // and each Line will be (JGlyph * #cols) + int + int
@@ -178,6 +202,12 @@ int main(int argc, char **argv) {
   loadFonts(hack_nerd_font_string);
   draw = XftDrawCreate(display, window, visual, colormap);
 
+  colors = (Colors){0, sizeof(colorname) / sizeof(colorname[0])};
+  colors.cols = malloc(colors.col_len * sizeof(XftColor));
+  for(int i = 0; i < colors.col_len; i++) {
+    XftColorAllocName(display, visual, colormap, colorname[i], &colors.cols[i]);
+  }
+
   XRenderColor xr = {0x0000, 0x0000, 0x0000, 0xffff};
   XftColorAllocValue(display, visual, colormap, &xr, &xft_font_color);
 
@@ -223,3 +253,7 @@ int main(int argc, char **argv) {
 // /usr/include/X11/keysymdef.h
 // tomoveto
 // printf "normal \033[1mbold\033[0m normal\n"
+// bash vs zsh differences so far
+// - zsh will start a new line even if not asked for and end the previous line with %. Bash just does what you say
+// - echo "\n", zsh will print an empty line, bash will literally print \n. (use printf "\n" for actual bash new lines)
+// - zsh seems to reset colors back to normal when drawing the prompt. Bash keeps the color whatever you set it

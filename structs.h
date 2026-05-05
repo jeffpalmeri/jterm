@@ -25,6 +25,8 @@ typedef struct JGlyph {
   int col;
   char c;
   int mode;
+  int fg;
+  int bg;
 } JGlyph;
 
 typedef struct Line {
@@ -45,6 +47,8 @@ typedef struct Term {
   int offset;
   int top;
   Line **lines;
+  int fg; // I'm only accounting for simple colors right now
+  int bg;
 } Term;
 
 typedef struct XY {
@@ -62,6 +66,11 @@ typedef struct Fonts {
   XftFont *italic;
   XftFont *bold_italic;
 } Fonts;
+
+typedef struct Colors {
+  XftColor *cols;
+  int col_len;
+} Colors;
 
 enum escape_state {
   ESC_START = 1 << 0, // 1

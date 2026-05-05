@@ -19,6 +19,7 @@ extern int masterFd;
 extern XftDraw *draw;
 extern XftColor xft_font_color;
 extern XftColor xft_bg_color;
+extern Colors colors;
 
 void printTermState(Term *term) {
   de_printf("========\n");
@@ -150,6 +151,14 @@ void write_char(JGlyph *gly) {
   if(term.cursor_x == gly->row && term.cursor_y == gly->col) {
     charColor = &xft_bg_color;
     recColor = &xft_font_color;
+  }
+
+  if(gly->fg != 0) {
+    charColor = colors.cols + gly->fg;
+  }
+
+  if(gly->bg != 0) {
+    recColor = colors.cols + gly->bg;
   }
 
   XftFont *glyph_font = fonts.normal;
