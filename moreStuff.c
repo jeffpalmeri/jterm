@@ -146,15 +146,16 @@ void handle_csi(CS *cs, Term *term) {
     break;
   }
   case 'J': {
-    switch(cs->arg[0]) {
-      case 2:
-        for(int i = 0; i < term->rows; i++) {
-          for(int j = 0; j < term->cols; j++) {
-            if(term->lines[i]->lineData[j].c == '\0') break;
-            term->lines[i]->lineData[j].c = '\0';
-            term->lines[i]->dirty = 1;
-          }
+    switch (cs->arg[0]) {
+    case 2:
+      for (int i = 0; i < term->rows; i++) {
+        for (int j = 0; j < term->cols; j++) {
+          if (term->lines[i]->lineData[j].c == '\0')
+            break;
+          term->lines[i]->lineData[j].c = '\0';
+          term->lines[i]->dirty = 1;
         }
+      }
     }
     break;
   }
@@ -170,6 +171,8 @@ void handle_csi(CS *cs, Term *term) {
     switch (cs->arg[0]) {
     case 0:
       term->mode = 0;
+      term->fg = 0;
+      term->bg = 0;
       break;
     case 1:
       term->mode |= MODE_BOLD;
@@ -178,6 +181,21 @@ void handle_csi(CS *cs, Term *term) {
       term->mode |= MODE_ITALIC;
       break;
     }
+  default:
+    if (cs->arg[0] >= 30 && cs->arg[0] <= 37) { // fg
+      // Need to figure out where to put this color right now...
+      // No char or glyph at this point to put it directly on.
+      // st seems to put it in information about the cursor.
+      // Maybe I could have color mode/attribute instead though.
+      term->fg = cs->arg[0] - 30;
+    } else if (cs->arg[0] >= 90 && cs->arg[0] <= 97) {
+      term->fg = cs->arg[0] - 90 + 8;
+    } else if (cs->arg[0] >= 40 && cs->arg[0] <= 47) {
+      term->bg = cs->arg[0] - 40;
+    } else if (cs->arg[0] >= 100 && cs->arg[0] <= 107) {
+      term->bg = cs->arg[0] - 100 + 8;
+    }
+    break;
   case 'C': // CUF
     // Note: I'm not taking into account the arg right now and assuming it's 1
     if (term->cursor_y + 1 <= term->cols) {
@@ -225,21 +243,6 @@ void handle_csi(CS *cs, Term *term) {
     term->lines[x]->lineData[y].c = ' ';
     break;
   }
-  default:
-    if (cs->arg[0] >= 30 && cs->arg[0] <= 37) { // fg
-      // Need to figure out where to put this color right now...
-      // No char or glyph at this point to put it directly on.
-      // st seems to put it in information about the cursor.
-      // Maybe I could have color mode/attribute instead though.
-      term->fg = cs->arg[0] - 30;
-    } else if (cs->arg[0] >= 90 && cs->arg[0] <= 97) {
-      term->fg = cs->arg[0] - 90 + 8;
-    } else if (cs->arg[0] >= 40 && cs->arg[0] <= 47) {
-      term->bg = cs->arg[0] - 40;
-    } else if (cs->arg[0] >= 100 && cs->arg[0] <= 107) {
-      term->bg = cs->arg[0] - 100 + 8;
-    }
-    break;
   }
   memset(cs, 0, sizeof(*cs));
 }
