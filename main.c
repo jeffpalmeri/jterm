@@ -123,6 +123,8 @@ void run() {
 }
 
 int main(int argc, char **argv) {
+	setenv("TERM", "jterm-256color", 1);
+
   memset(&cs, 0, sizeof(cs));
   const int maxSnLen = 1000;
   char slaveName[1000];
