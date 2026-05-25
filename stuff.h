@@ -4,8 +4,8 @@
 #include <X11/Xft/Xft.h>
 #include "structs.h"
 
-#define MARGIN_LEFT 50
-#define MARGIN_TOP 100
+#define MARGIN_LEFT 30
+#define MARGIN_TOP 50
 
 void write_char(JGlyph *glyph);
 
@@ -15,4 +15,5 @@ void eraseCursor(XftFont *font, XftColor *color, XftDraw *draw);
 XY coord_TermToWin(int x, int y);
 
 void renderTerm();
+void redraw();
 #endif

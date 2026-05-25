@@ -65,6 +65,8 @@ void put_char(Term *term, int i, const char *p) {
     term->cursor_y = 0;
   } else if (*(p + i) == 13) {
     // de_printf("THIS IS A CARRIAGE RETURN!!!!!!!\n");
+    term->old_cursor_y = term->cursor_y;
+    term->cursor_y = 0;
   } else if (*(p + i) == 9) {
     // de_printf("THIS IS A HORIZONTAL TAB!!!!!!!\n");
   } else if (*(p + i) == 8) {
@@ -80,9 +82,10 @@ void put_char(Term *term, int i, const char *p) {
         .fg = term->fg,
         .bg = term->bg,
     };
-    if (term->cursor_y + 1 >= term->cols) {
+    if (term->cursor_y + 1 > term->cols) {
       term->cursor_y = 0;
       term->cursor_x = (x + 1) % term->rows;
+      term->lines[x]->dirty = 1;
       term->lines[(x + 1) % term->rows]->dirty = 1;
       term->offset++;
     } else {
@@ -148,10 +151,9 @@ void handle_csi(CS *cs, Term *term) {
   case 'J': {
     switch (cs->arg[0]) {
     case 2:
+    case 3:
       for (int i = 0; i < term->rows; i++) {
         for (int j = 0; j < term->cols; j++) {
-          if (term->lines[i]->lineData[j].c == '\0')
-            break;
           term->lines[i]->lineData[j].c = '\0';
           term->lines[i]->dirty = 1;
         }
@@ -159,6 +161,32 @@ void handle_csi(CS *cs, Term *term) {
     }
     break;
   }
+  case 'A':
+    if (term->cursor_x - 1 >= 0) {
+      term->cursor_x--;
+    }
+    break;
+  case 'B':
+    if (term->cursor_x + 1 < term->rows) {
+      term->cursor_x++;
+    }
+    break;
+  case 'C': // CUF
+    // Note: I'm not taking into account the arg right now and assuming it's 1
+    if (term->cursor_y + 1 <= term->cols) {
+      term->old_cursor_y = term->cursor_y;
+      term->cursor_y++;
+    }
+    term->lines[term->cursor_x]->dirty =
+        1; // I don't know if this is needed right now still
+    break;
+  case 'D':
+    if (term->cursor_y - 1 >= 0) {
+      term->old_cursor_y = term->cursor_y;
+      term->cursor_y--;
+      // term->lines[term->cursor_x]->dirty = 1;
+    }
+    break;
   case 'h':
     // turn on bracketed paste mode (will implement later)
     break;
@@ -183,10 +211,6 @@ void handle_csi(CS *cs, Term *term) {
     }
   default:
     if (cs->arg[0] >= 30 && cs->arg[0] <= 37) { // fg
-      // Need to figure out where to put this color right now...
-      // No char or glyph at this point to put it directly on.
-      // st seems to put it in information about the cursor.
-      // Maybe I could have color mode/attribute instead though.
       term->fg = cs->arg[0] - 30;
     } else if (cs->arg[0] >= 90 && cs->arg[0] <= 97) {
       term->fg = cs->arg[0] - 90 + 8;
@@ -195,14 +219,6 @@ void handle_csi(CS *cs, Term *term) {
     } else if (cs->arg[0] >= 100 && cs->arg[0] <= 107) {
       term->bg = cs->arg[0] - 100 + 8;
     }
-    break;
-  case 'C': // CUF
-    // Note: I'm not taking into account the arg right now and assuming it's 1
-    if (term->cursor_y + 1 <= term->cols) {
-      term->old_cursor_y = term->cursor_y;
-      term->cursor_y++;
-    }
-    term->lines[term->cursor_x]->dirty = 1;
     break;
   case 'P': { // DCH
     int x = term->cursor_x;

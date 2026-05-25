@@ -6,5 +6,6 @@
 #include <X11/extensions/Xrender.h>
 
 void handleKeyPress(XEvent *e);
+void handleConfigureNotify(XEvent *e);
 
 #endif

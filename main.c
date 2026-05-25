@@ -66,8 +66,22 @@ Colors colors;
 
 void drawGlyph() {}
 
+void handleFocusIn(XEvent *e) {
+  printf("focus in\n");
+}
+void handleFocusOut(XEvent *e) {
+  printf("focus out\n");
+}
+void handleExpose(XEvent *e) {
+  redraw();
+}
+
 static void (*handler[LASTEvent])(XEvent *) = {
     [KeyPress] = handleKeyPress,
+    [ConfigureNotify] = handleConfigureNotify,
+    [FocusIn] = handleFocusIn,
+    [FocusOut] = handleFocusOut,
+    [Expose] = handleExpose,
 };
 
 char *hack_nerd_font_string = "Hack Nerd Font:pixelsize=28:antialias=true:autohint=true";
@@ -132,18 +146,22 @@ int main(int argc, char **argv) {
   struct termios ttyOrig;
   struct winsize ws;
   char *shell;
-  if (tcgetattr(STDIN_FILENO, &ttyOrig) == -1) {
-    die("tcgetattr");
-  }
-  if (ioctl(STDIN_FILENO, TIOCGWINSZ, &ws) < 0) {
-    die("ioctl-TIOCGWINSZ");
-  }
+
+  // if(isatty(STDIN_FILENO)) {
+  //   if (tcgetattr(STDIN_FILENO, &ttyOrig) == -1) {
+  //     die("die tcgetattr");
+  //   }
+  //   if (ioctl(STDIN_FILENO, TIOCGWINSZ, &ws) < 0) {
+  //     die("ioctl-TIOCGWINSZ");
+  //   }
+  // }
 
   pid_t childPid = ptyFork(&masterFd, slaveName, MAX_SNAME, &ttyOrig, &ws);
   if (childPid == 0) {
     // shell = getenv("SHELL");
     // if(shell == NULL || *shell == '\0') shell = "/bin/sh";
     shell = "/bin/sh";
+    // shell = "/bin/bash";
     // shell = "/bin/zsh";
     execlp(shell, shell, (char *)NULL);
     die("execlp"); // If we get here, something went wrong
@@ -162,9 +180,12 @@ int main(int argc, char **argv) {
     term.lines[i]->dirty = 1;
     term.lines[i]->row = i;
     term.lines[i]->lineData = malloc(sizeof(JGlyph) * term.cols);
-    for(int j = 0; j < term.cols; j++) {
+    for(int j = 0; j < term.cols; j++) { // here, what's happening at 109
       term.lines[i]->lineData[j].row = i;
       term.lines[i]->lineData[j].col = j;
+      term.lines[i]->lineData[j].c = '\0';
+      term.lines[i]->lineData[j].bg = 0;
+      term.lines[i]->lineData[j].fg = 0;
     }
   }
   // term.lines = malloc(sizeof(Line*) * term.rows);
@@ -259,3 +280,8 @@ int main(int argc, char **argv) {
 // - zsh will start a new line even if not asked for and end the previous line with %. Bash just does what you say
 // - echo "\n", zsh will print an empty line, bash will literally print \n. (use printf "\n" for actual bash new lines)
 // - zsh seems to reset colors back to normal when drawing the prompt. Bash keeps the color whatever you set it
+//
+// break set --file x.c --line 1981 -c '(ev.type == 2)'
+// break set --file stuff.c --line 220 -c '(y == 120)'
+// break set --file main.c --line 169 -c '(j == 108)'
+// break set --file ConfigureNotify.c --line 41 -c '(j == 108)'

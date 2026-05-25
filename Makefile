@@ -1,8 +1,8 @@
 C_FLAGS_EXTRA ?=
 
-main: main.o pty.o ptyFork.o stuff.o moreStuff.o fontStuff.o EventHandlers/KeyPress.o
+jterm: main.o pty.o ptyFork.o stuff.o moreStuff.o fontStuff.o EventHandlers/KeyPress.o EventHandlers/ConfigureNotify.o
 	# gcc main.o -o main -lX11 -lfontconfig -lXft -lfreetype
-	gcc -g -O0 main.o pty.o ptyFork.o stuff.o moreStuff.o fontStuff.o EventHandlers/KeyPress.o -o build/main `pkg-config --libs x11 xft fontconfig`
+	gcc -g -O0 main.o pty.o ptyFork.o stuff.o moreStuff.o fontStuff.o EventHandlers/KeyPress.o EventHandlers/ConfigureNotify.o -o build/jterm `pkg-config --libs x11 xft fontconfig`
 
 main.o: main.c
 	# gcc -c main.c -o main.o `pkg-config --cflags freetype2`
@@ -15,8 +15,7 @@ ptyFork.o: ptyFork.c
 	gcc -c ptyFork.c -o ptyFork.o
 
 clean:
-	# rm -rf main.o main .cache pty.o ptyFork.o script.o tty_functions.o
-	rm -rf main .cache *.o
+	rm -rf main .cache **/*.o
 
 stuff.o: stuff.c
 	gcc -c -g -O0 stuff.c $(C_FLAGS_EXTRA) -o stuff.o `pkg-config --cflags x11 xft fontconfig`
@@ -31,7 +30,10 @@ test.o: test.c
 	gcc -c -g -O0 test.c -o test.o `pkg-config --libs x11 xft fontconfig --cflags x11 xft fontconfig`
 
 EventHandlers/KeyPress.o: EventHandlers/KeyPress.c
-	gcc -c -g -O0 EventHandlers/KeyPress.c $(C_FLAGS_EXTRA) -o EventHandlers/KeyPress.o `pkg-config --cflags x11`
+	gcc -c -g -O0 EventHandlers/KeyPress.c $(C_FLAGS_EXTRA) -o EventHandlers/KeyPress.o `pkg-config --cflags x11 fontconfig`
+
+EventHandlers/ConfigureNotify.o: EventHandlers/ConfigureNotify.c
+	gcc -c -g -O0 EventHandlers/ConfigureNotify.c $(C_FLAGS_EXTRA) -o EventHandlers/ConfigureNotify.o `pkg-config --cflags x11 fontconfig`
 
 .PHONY: test
 test: test.o moreStuff.o
@@ -80,3 +82,9 @@ nogui: nogui.o from_book/lib/error_functions.o ptyFork.o pty.o
 
 nogui.o: nogui.c
 	gcc -c nogui.c -o nogui.o
+
+install: jterm
+	cp -f build/jterm /usr/local/bin
+	chmod 755 /usr/local/bin/jterm
+	tic -sx jterm.info
+	# @echo Please see the README file regarding the terminfo entry of st.

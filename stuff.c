@@ -210,12 +210,16 @@ void renderTerm() {
         XClearArea(display, window,
                    c.x,                // x
                    c.y - fonts.normal->ascent, // y
-                   2000,               // width
+                   5000,               // width
                    fonts.normal->height,       // height
                    0);
       // }
       int y = 0;
-      while (y < term.cols && term.lines[x]->lineData[y].c != '\0') {
+      // I can't remember why I commented out this next line in favor of
+      // looping the full number of cols... But I'll leave it commented
+      // out and this comment in case I remember at some point.
+      // while (y < term.cols && term.lines[x]->lineData[y].c != '\0') {
+      while (y < term.cols) {
         write_char(&term.lines[x]->lineData[y]);
         y++;
       }
@@ -223,4 +227,11 @@ void renderTerm() {
     }
   }
   drawCursor(fonts.normal, &xft_font_color, draw);
+}
+
+void redraw() {
+  for(int i = 0; i < term.rows; i++) {
+    term.lines[i]->dirty = 1;
+  }
+  renderTerm();
 }

@@ -58,17 +58,17 @@ pid_t ptyFork(int *masterFd, char *slaveName, size_t snLen, const struct termios
     if(ioctl(slaveFd, TIOCSCTTY, 0) == -1) return -7;
   #endif
 
-  if(slaveTermios != NULL) {
-    if(tcsetattr(slaveFd, TCSANOW, slaveTermios) == -1) { // Set slave tty attributes
-      return -7;
-    }
-  }
-
-  if(slaveWS != NULL) {
-    if(ioctl(slaveFd, TIOCSWINSZ, slaveWS) == -1) { // Set slave tty window
-      return -8;
-    }
-  }
+  // if(slaveTermios != NULL) {
+  //   if(tcsetattr(slaveFd, TCSANOW, slaveTermios) == -1) { // Set slave tty attributes
+  //     return -7;
+  //   }
+  // }
+  //
+  // if(slaveWS != NULL) {
+  //   if(ioctl(slaveFd, TIOCSWINSZ, slaveWS) == -1) { // Set slave tty window
+  //     return -8;
+  //   }
+  // }
 
   // Duplicate pty slave to be child's stdin, stdout, and stderr
   if(dup2(slaveFd, STDIN_FILENO) != STDIN_FILENO) return -9;
